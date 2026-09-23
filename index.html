@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en-US">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MacBook Pro with M5 · Concept</title>
+<meta name="description" content="A concept site for the 14-inch MacBook Pro with M5, rendered entirely in code.">
+<meta name="theme-color" content="#060607">
+<meta property="og:title" content="Lift the lid on M5"><meta property="og:image" content="assets/og.svg">
+<meta property="og:type" content="website">
+<meta property="og:description" content="A concept site for the 14-inch MacBook Pro with M5, rendered entirely in code.">
+<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Lift the lid on M5. A concept site rendered in code.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Lift the lid on M5">
+<meta name="twitter:description" content="A concept site for the 14-inch MacBook Pro with M5, rendered entirely in code.">
+<meta name="twitter:image" content="assets/og.svg">
+<meta name="color-scheme" content="dark light">
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lenis@1.3.4/dist/lenis.css">
+<link rel="stylesheet" href="css/tokens.css"><link rel="stylesheet" href="css/base.css"><link rel="stylesheet" href="css/sections.css">
+<script>document.documentElement.className='js';</script>
+<script type="importmap">{"imports":{
+  "three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}</script>
+<script type="module" async>
+  import * as THREE from 'three';
+  import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+  import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+  import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
+  import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+  window.THREE = THREE;
+  window.THREE_ADDONS = { RoomEnvironment, RoundedBoxGeometry, RectAreaLightUniformsLib, mergeGeometries };
+  window.dispatchEvent(new Event('three:ready'));
+</script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<div class="preloader" data-preloader aria-hidden="true">
+  <i class="preloader__bar preloader__bar--top"></i>
+  <div class="preloader__slate"><span class="preloader__title">MacBook Pro · M5</span>
+    <span class="preloader__note mono">Rendered in code</span>
+    <span class="preloader__count mono" data-preloader-count>000</span></div>
+  <i class="preloader__bar preloader__bar--bottom"></i>
+</div>
+<header class="nav" data-nav>
+  <a class="nav__mark" href="#hero">MacBook Pro <b>M5</b></a>
+  <nav class="nav__links" aria-label="Chapters">
+    <a href="#chip" data-nav-link="chip">Chip</a><a href="#display" data-nav-link="display">Display</a>
+    <a href="#battery" data-nav-link="battery">Battery</a><a href="#finish" data-nav-link="finish">Finish</a></nav>
+  <span class="nav__index mono" data-nav-index aria-hidden="true">01 / 10 · Lift the lid</span>
+  <a class="nav__cta" href="https://www.apple.com/macbook-pro/specs/" target="_blank" rel="noopener">Tech specs ↗</a>
+  <i class="nav__progress" data-nav-progress></i>
+</header>
+<div class="cursor" data-cursor-el aria-hidden="true"><i class="cursor__ring"></i><span class="cursor__label" data-cursor-label></span></div>
+<div class="grain" aria-hidden="true"></div>
+<div class="mac-stage" data-mac-stage aria-hidden="true">
+  <canvas class="mac-stage__canvas" data-mac-canvas></canvas>
+  <div class="mac-stage__fallback" data-mac-fallback hidden>
+    <svg class="mac-fallback" viewBox="0 0 1200 760" focusable="false">
+      <defs>
+        <linearGradient id="mf-metal" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#48474B"/><stop offset=".42" stop-color="#2C2B2E"/><stop offset="1" stop-color="#161517"/>
+        </linearGradient>
+        <linearGradient id="mf-screen" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#0B0D10"/><stop offset=".62" stop-color="#2C2B2E"/><stop offset="1" stop-color="#E9B98A"/>
+        </linearGradient>
+      </defs>
+      <path d="M318 96 L896 70 Q912 69 913 85 L940 488 L292 510 L302 112 Q303 97 318 96 Z" fill="url(#mf-metal)"/>
+      <path d="M324 108 L890 83 Q900 83 901 93 L926 482 L306 502 L314 118 Q315 109 324 108 Z" fill="#050505"/>
+      <path d="M338 124 L880 100 L904 468 L322 487 Z" fill="url(#mf-screen)"/>
+      <path d="M580 112 L632 110 L633 118 L581 120 Z" fill="#050505"/>
+      <path d="M338 124 L880 100 L884 160 L336 176 Z" fill="#F2F1EE" opacity=".05"/>
+      <path d="M292 510 L940 488 L1086 596 Q1092 604 1080 606 L186 634 Q172 634 178 624 Z" fill="url(#mf-metal)"/>
+      <path d="M332 522 L902 503 L990 566 L262 588 Z" fill="#0A0A0B"/>
+      <path d="M520 596 L760 588 L800 612 L500 621 Z" fill="#48474B" opacity=".55"/>
+      <path d="M178 624 L1080 606 L1080 616 Q1078 624 1066 624 L196 646 Q182 646 180 638 Z" fill="#161517"/>
+      <path d="M292 510 L940 488" stroke="#DCDDDF" stroke-opacity=".18" stroke-width="1.5"/>
+      <path d="M186 634 L1080 606" stroke="#DCDDDF" stroke-opacity=".22" stroke-width="1"/>
+      <ellipse cx="632" cy="664" rx="470" ry="18" fill="#000" opacity=".55"/>
+    </svg>
+  </div>
+</div>
+
+<main id="main">
+<section id="hero" class="section hero" data-section="01" data-title="Lift the lid" data-nav-theme="dark" aria-labelledby="hero-title">
+  <i class="hero__letterbox hero__letterbox--top" aria-hidden="true"></i>
+  <div class="hero__copy">
+    <p class="eyebrow hero__eyebrow">MacBook Pro 14-inch · M5</p>
+    <h1 id="hero-title" class="hero__title" data-sweep-text>Lift the lid on M5.</h1>
+    <p class="hero__sub">Ten GPU cores, each with its own Neural Accelerator. Scroll to open it.</p>
+  </div>
+  <button class="hero__peek" type="button" data-mac-peek data-cursor="hold">Hold to peek</button>
+  <p class="hero__cue mono" aria-hidden="true">Scroll<i class="hero__cue-line"></i></p>
+  <i class="hero__letterbox hero__letterbox--bottom" aria-hidden="true"></i>
+</section>
+
+<section id="brief" class="section brief" data-section="02" data-title="What changed" data-nav-theme="dark" aria-labelledby="brief-title">
+  <p class="eyebrow">What changed</p>
+  <h2 id="brief-title" class="brief__lead">The change is inside the graphics.</h2>
+  <p class="brief__statement" data-split-words>M5 puts a <button type="button" class="gloss" data-gloss="na">Neural Accelerator</button> in each of its ten GPU cores. They share <button type="button" class="gloss" data-gloss="um">unified memory</button> with the CPU and the <button type="button" class="gloss" data-gloss="ne">Neural Engine</button>, so AI work has more than one place to run.</p>
+  <aside class="brief__notes mono" aria-live="polite">
+    <p data-gloss-note="na" hidden>Neural Accelerator. Dedicated hardware inside each GPU core. Ten in total on M5.</p>
+    <p data-gloss-note="um" hidden>Unified memory. One pool of up to 32GB, read at 153GB/s.</p>
+    <p data-gloss-note="ne" hidden>Neural Engine. A separate 16-core block on the same die.</p>
+  </aside>
+</section>
+
+<section id="chip" class="section chip" data-section="03" data-title="The chip" data-nav-theme="dark" aria-labelledby="chip-title">
+  <div class="chip__stage">
+    <canvas class="chip__gl" data-chip-canvas aria-hidden="true"></canvas>
+    <canvas class="chip__die" data-die-canvas tabindex="-1" role="img" aria-label="Illustrative floorplan of the M5 die showing CPU, GPU, Neural Engine and memory interface."></canvas>
+    <svg class="chip__leaders" data-chip-leaders aria-hidden="true"></svg>
+    <div class="chip__labels mono" data-chip-labels aria-hidden="true">
+      <span class="chip__label" data-chip-label="tim">Thermal interface</span>
+      <span class="chip__label" data-chip-label="die">M5 die</span>
+      <span class="chip__label" data-chip-label="mem">Unified memory</span>
+      <span class="chip__label" data-chip-label="sub">Package substrate</span>
+      <span class="chip__label" data-chip-label="bga">Ball grid array</span>
+    </div>
+    <div class="chip__tip" data-chip-tip role="status" hidden><strong data-chip-tip-title></strong><span data-chip-tip-body></span></div>
+  </div>
+  <div class="chip__copy">
+    <article class="chip__step" data-chip-step="0"><p class="eyebrow">Fig. 1 · M5, exploded</p><h2 id="chip-title">Take the chip apart.</h2><p>Keep scrolling. The package separates layer by layer, then the camera drops into the die.</p></article>
+    <article class="chip__step" data-chip-step="1"><p class="eyebrow">Process</p><h2>Third-generation 3-nanometer technology.</h2><p>One die holds every processor on this page. Unified memory sits right beside it.</p></article>
+    <article class="chip__step" data-chip-step="2"><p class="eyebrow">Unified memory</p><h2>153GB/s of memory bandwidth.</h2><p>Nearly 30 percent more than M4, shared by the CPU, GPU and Neural Engine. Configure up to 32GB.</p><p class="caption">Particle rate scaled to Apple's "nearly 30 percent." Illustrative.</p></article>
+    <article class="chip__step" data-chip-step="3"><p class="eyebrow">CPU</p><h2>Ten cores: 4 super, 6 efficiency.</h2><p>Apple now calls its performance cores super cores. Switch the load to see which cluster picks up the work.</p></article>
+    <article class="chip__step" data-chip-step="4"><p class="eyebrow">GPU</p><h2>A Neural Accelerator in every GPU core.</h2><p>Ten cores, ten accelerators. Over 4x the peak GPU compute of M4, plus a third-generation ray-tracing engine with up to a 45 percent graphics uplift in apps that use ray tracing.</p></article>
+    <article class="chip__step" data-chip-step="5"><p class="eyebrow">Neural Engine</p><h2>The 16-core Neural Engine is still here.</h2><p>So on-device models have two places to run: the accelerators inside the GPU, and this.</p></article>
+    <article class="chip__step" data-chip-step="6"><p class="eyebrow">M5</p><h2>That is the whole chip.</h2>
+      <ul class="chip__stats mono"><li>10-core CPU</li><li>10-core GPU</li><li>16-core Neural Engine</li><li>Up to 32GB unified memory</li></ul></article>
+  </div>
+  <div class="chip__controls">
+    <div class="seg" role="group" aria-label="Memory rate" data-chip-control="rate"><button type="button" data-value="m4" aria-pressed="false">M4</button><button type="button" data-value="m5" aria-pressed="true">M5</button></div>
+    <div class="seg" role="group" aria-label="CPU load" data-chip-control="load"><button type="button" data-value="light" aria-pressed="true">Light load</button><button type="button" data-value="heavy" aria-pressed="false">Heavy load</button></div>
+    <div class="seg" role="group" aria-label="GPU work" data-chip-control="gpu"><button type="button" data-value="graphics" aria-pressed="false">Graphics</button><button type="button" data-value="ai" aria-pressed="true">AI</button></div>
+    <label class="chip__type" data-chip-control="ne"><span class="mono">Type to send work to the Neural Engine</span><input type="text" data-chip-ne-input maxlength="40" autocomplete="off" placeholder="Type anything"></label>
+  </div>
+  <div class="chip__hud mono">
+    <span class="chip__hud-label" data-chip-hud-label>Package</span><span class="chip__zoom" data-chip-zoom>×1.0</span>
+    <ol class="chip__stops" data-chip-stops>
+      <li><button type="button" data-stop="0">Package</button></li><li><button type="button" data-stop="1">CPU</button></li>
+      <li><button type="button" data-stop="2">GPU</button></li><li><button type="button" data-stop="3">Core 7</button></li>
+      <li><button type="button" data-stop="4">Neural Accelerator</button></li><li><button type="button" data-stop="5">Neural Engine</button></li>
+      <li><button type="button" data-stop="6">Whole die</button></li></ol>
+    <p class="caption">Illustrative model and floorplan. Not a die photograph.</p>
+  </div>
+  <div class="chip__stepper" data-chip-stepper hidden><button type="button" data-chip-prev>Previous</button><button type="button" data-chip-next>Next</button></div>
+</section>
+
+<section id="proof" class="section proof" data-section="04" data-title="Performance" data-nav-theme="light" aria-labelledby="proof-title">
+  <header class="proof__head"><p class="eyebrow">Apple's published figures</p>
+    <h2 id="proof-title" class="proof__title">Drawn to scale.</h2>
+    <p class="proof__sub">Apple's published multipliers for MacBook Pro 14-inch with M5. Each bar is exactly as long as its number. Pick a baseline.</p>
+    <div class="seg" role="group" aria-label="Baseline" data-proof-base>
+      <button type="button" data-value="gen" aria-pressed="true">Previous generation</button><button type="button" data-value="m1" aria-pressed="false">M1</button><button type="button" data-value="intel" aria-pressed="false">Intel-based</button></div></header>
+  <ol class="proof__rows" data-proof-rows>
+    <li class="proof__row" data-proof-row="0"><span class="proof__label" data-proof-label>AI performance</span>
+      <span class="proof__value">Up to <b data-proof-num>3.5</b>x</span>
+      <span class="proof__track"><i class="proof__base"></i><i class="proof__bar" data-proof-bar></i></span>
+      <button type="button" class="proof__fn" data-proof-fn aria-expanded="false" aria-label="Test conditions">¹</button>
+      <p class="proof__note caption" hidden>Testing conducted by Apple in September 2025 using preproduction 14-inch MacBook Pro systems with Apple M5. Figures as published by Apple, October 2025.</p></li>
+    <li class="proof__row" data-proof-row="1"><span class="proof__label" data-proof-label>Graphics</span>
+      <span class="proof__value">Up to <b data-proof-num>1.6</b>x</span>
+      <span class="proof__track"><i class="proof__base"></i><i class="proof__bar" data-proof-bar></i></span>
+      <button type="button" class="proof__fn" data-proof-fn aria-expanded="false" aria-label="Test conditions">¹</button>
+      <p class="proof__note caption" hidden>Testing conducted by Apple in September 2025 using preproduction 14-inch MacBook Pro systems with Apple M5. Figures as published by Apple, October 2025.</p></li>
+    <li class="proof__row is-hidden" data-proof-row="2"><span class="proof__label" data-proof-label>CPU performance</span>
+      <span class="proof__value">Up to <b data-proof-num>2</b>x</span>
+      <span class="proof__track"><i class="proof__base"></i><i class="proof__bar" data-proof-bar></i></span>
+      <button type="button" class="proof__fn" data-proof-fn aria-expanded="false" aria-label="Test conditions">¹</button>
+      <p class="proof__note caption" hidden>Testing conducted by Apple in September 2025 using preproduction 14-inch MacBook Pro systems with Apple M5. Figures as published by Apple, October 2025.</p></li>
+  </ol>
+  <p class="proof__foot caption">"Previous generation" is MacBook Pro 14-inch with M4. All figures are "up to."</p>
+</section>
+
+<section id="display" class="section display" data-section="05" data-title="Display" data-nav-theme="dark" aria-labelledby="display-title">
+  <div class="display__frame" data-display-frame>
+    <canvas class="display__canvas" data-display-canvas tabindex="0" data-cursor="drag" role="img" aria-label="Illustrative night scene with a movable light. Use the arrow keys to move the light."></canvas></div>
+  <div class="display__copy"><p class="eyebrow">Liquid Retina XDR</p>
+    <h2 id="display-title" data-display-title>1600 nits, only where the picture asks for it.</h2>
+    <p>The 14.2-inch display holds 1000 nits sustained full-screen and reaches 1600 nits peak for HDR content, with a 1,000,000:1 contrast ratio. ProMotion refreshes at up to 120Hz.</p></div>
+  <div class="display__controls">
+    <button type="button" class="toggle" data-display-zones aria-pressed="true">Show dimming zones</button>
+    <div class="seg" role="group" aria-label="Glass" data-display-glass><button type="button" data-value="std" aria-pressed="true">Standard glass</button><button type="button" data-value="nano" aria-pressed="false">Nano-texture</button></div></div>
+  <p class="display__readout mono" data-display-readout><span data-count="3024">0</span> × <span data-count="1964">0</span> · <span data-count="254">0</span> ppi</p>
+  <p class="caption display__caption">Zone grid is illustrative. Nano-texture is a configurable option.</p>
+</section>
+
+<section id="rail" class="section rail" data-section="06" data-title="Around the chip" data-nav-theme="dark" aria-labelledby="rail-title">
+  <header class="rail__head"><p class="eyebrow">Around the chip</p><h2 id="rail-title">The machine around M5.</h2>
+    <p>Five numbers from the spec sheet. Drag the rail or keep scrolling.</p></header>
+  <div class="rail__viewport" data-rail-viewport tabindex="0" data-cursor="drag" aria-label="Specification rail">
+    <ol class="rail__track" data-rail-track>
+      <li class="rail__panel"><span class="rail__ghost" aria-hidden="true">Storage</span><p class="rail__num"><span data-odo="1">1</span><span class="rail__unit">TB</span></p><p class="rail__label mono">Storage, standard</p><p class="rail__cap">Configurable up to 4TB, with faster SSD performance than the previous generation.</p></li>
+      <li class="rail__panel"><span class="rail__ghost" aria-hidden="true">Ports</span><p class="rail__num"><span data-odo="3">3</span><span class="rail__unit">Thunderbolt 4</span></p><p class="rail__label mono">Ports</p><p class="rail__cap">Plus HDMI, an SDXC card slot, MagSafe 3 and a headphone jack. Up to two high-resolution external displays.</p></li>
+      <li class="rail__panel"><span class="rail__ghost" aria-hidden="true">Camera</span><p class="rail__num"><span data-odo="12">12</span><span class="rail__unit">MP</span></p><p class="rail__label mono">Center Stage camera</p><p class="rail__cap">With support for Desk View.</p></li>
+      <li class="rail__panel"><span class="rail__ghost" aria-hidden="true">Sound</span><p class="rail__num"><span data-odo="6">6</span><span class="rail__unit">speakers</span></p><p class="rail__label mono">Sound system</p><p class="rail__cap">Force-cancelling woofers, with Spatial Audio and Dolby Atmos.</p></li>
+      <li class="rail__panel"><span class="rail__ghost" aria-hidden="true">Weight</span><p class="rail__num"><span data-odo="1.55">1.55</span><span class="rail__unit">kg</span></p><p class="rail__label mono">Weight</p><p class="rail__cap">31.26 × 22.12 × 1.55 cm, in Space Black or Silver.</p></li>
+    </ol></div>
+</section>
+
+<section id="battery" class="section battery" data-section="07" data-title="Battery" data-nav-theme="light" aria-labelledby="battery-title">
+  <canvas class="battery__sky" data-battery-sky tabindex="0" data-cursor="drag" aria-label="Time of day. Use the arrow keys to change the hour."></canvas>
+  <div class="battery__copy"><p class="eyebrow">Battery</p><h2 id="battery-title">Up to 24 hours on one charge.</h2>
+    <p>That is the video-streaming figure. Wireless web runs up to 16 hours. Plug in a 96W or higher USB-C adapter and it charges up to 50 percent in 30 minutes.</p></div>
+  <svg class="battery__numeral" data-battery-numeral viewBox="0 0 1000 600" role="img" aria-label="24 hours">
+    <defs><filter id="battery-ring" x="-4%" y="-4%" width="108%" height="108%" color-interpolation-filters="sRGB"><feMorphology in="SourceAlpha" operator="dilate" radius="2.4" result="fat"/><feComposite in="fat" in2="SourceAlpha" operator="out" result="ring"/><feFlood class="battery__ring-color" result="ink"/><feComposite in="ink" in2="ring" operator="in"/></filter><clipPath id="battery-clip"><text data-battery-digits x="500" y="520" text-anchor="middle" font-size="640" font-weight="800" letter-spacing="-28">24</text></clipPath></defs>
+    <g clip-path="url(#battery-clip)"><rect data-battery-level x="0" y="0" width="1000" height="600"/><path data-battery-wave/></g>
+    <text class="battery__outline" data-battery-outline x="500" y="520" text-anchor="middle" font-size="640" font-weight="800" letter-spacing="-28">24</text></svg>
+  <div class="battery__hours mono" data-battery-hours aria-hidden="true"></div>
+  <p class="battery__clock mono" data-battery-clock aria-live="off">06:00</p>
+  <div class="seg" role="group" aria-label="Workload" data-battery-mode><button type="button" data-value="video" aria-pressed="true">Video streaming</button><button type="button" data-value="web" aria-pressed="false">Wireless web</button></div>
+  <p class="caption">Battery life varies by use and configuration.</p>
+</section>
+
+<section id="material" class="section material" data-section="08" data-title="Enclosure" data-nav-theme="dark" aria-labelledby="material-title">
+  <canvas class="material__plate" data-knockout-canvas aria-hidden="true"></canvas>
+  <div class="material__copy"><p class="eyebrow">Enclosure</p><h2 id="material-title">The enclosure is 100 percent recycled aluminum.</h2>
+    <p>Across the whole machine, 45 percent of the content by weight is recycled. Keep scrolling to go through the zero.</p></div>
+</section>
+
+<section id="finish" class="section finish" data-section="09" data-title="Finish" data-theme="space-black" data-nav-theme="dark" aria-labelledby="finish-title">
+  <p class="finish__name" data-finish-name aria-hidden="true">Space Black</p>
+  <div class="finish__copy"><p class="eyebrow">Finish</p><h2 id="finish-title">Space Black or Silver.</h2>
+    <p>Two anodized aluminum finishes. Drag to turn it, or use the arrow keys.</p></div>
+  <div class="finish__hit" data-finish-hit tabindex="0" data-cursor="drag" role="img" aria-label="MacBook Pro model. Drag or use the arrow keys to rotate."></div>
+  <div class="finish__controls">
+    <div class="swatches" role="radiogroup" aria-label="Finish">
+      <button type="button" class="swatch" role="radio" aria-checked="true" data-finish="space-black"><i class="swatch__chip"></i><span>Space Black</span></button>
+      <button type="button" class="swatch" role="radio" aria-checked="false" data-finish="silver"><i class="swatch__chip"></i><span>Silver</span></button></div>
+    <button type="button" class="toggle" data-mac-lid aria-pressed="true">Close the lid</button></div>
+</section>
+
+<section id="finale" class="section finale" data-section="10" data-title="Lid down" data-nav-theme="dark" aria-labelledby="finale-title">
+  <div class="finale__copy"><p class="eyebrow">Lid down</p><h2 id="finale-title">MacBook Pro <span class="nw">14-inch</span> with M5.</h2>
+    <p class="finale__price">From $1,699 (U.S.), with 1TB of storage standard.</p>
+    <p class="finale__meta mono">Every frame on this page is rendered in code. No photographs, no video.</p>
+    <div class="finale__actions"><a class="btn btn--primary" href="https://www.apple.com/shop/buy-mac/macbook-pro/14-inch-m5" target="_blank" rel="noopener" data-cursor="click">See it on apple.com ↗</a>
+      <button type="button" class="btn btn--ghost" data-scroll-top>Back to the lid</button></div></div>
+  <dl class="finale__roll mono" data-finale-roll>
+    <dt>Chip</dt><dd>Apple M5 · 10-core CPU · 10-core GPU · 16-core Neural Engine</dd>
+    <dt>Memory</dt><dd>16GB, 24GB or 32GB unified memory · 153GB/s</dd>
+    <dt>Storage</dt><dd>1TB standard, up to 4TB</dd>
+    <dt>Display</dt><dd>14.2-inch Liquid Retina XDR · 3024 × 1964 at 254 ppi · up to 120Hz</dd>
+    <dt>Battery</dt><dd>Up to 24 hours video streaming · up to 16 hours wireless web · 72.4Wh</dd>
+    <dt>Ports</dt><dd>Three Thunderbolt 4 · HDMI · SDXC · MagSafe 3 · 3.5 mm headphone jack</dd>
+    <dt>Wireless</dt><dd>Wi-Fi 6E · Bluetooth 5.3</dd>
+    <dt>Camera and audio</dt><dd>12MP Center Stage with Desk View · six speakers · three-mic array</dd>
+    <dt>Size</dt><dd>31.26 × 22.12 × 1.55 cm · 1.55 kg</dd>
+    <dt>Finish</dt><dd>Space Black · Silver · 100 percent recycled aluminum enclosure</dd></dl>
+  <i class="finale__line" data-finale-line aria-hidden="true"></i>
+</section>
+</main>
+
+<footer class="footer">
+  <ol class="footer__notes caption">
+    <li>Testing conducted by Apple in September 2025 using preproduction 14-inch MacBook Pro systems with Apple M5. Figures as published by Apple, October 2025.</li>
+    <li>Battery life varies by use and configuration.</li>
+    <li>U.S. pricing as published by Apple, March 2026.</li>
+    <li>Chip model, floorplan, zone grid and particle rates are illustrations, not measurements.</li>
+    <li>Sources: apple.com/macbook-pro/specs and Apple Newsroom.</li></ol>
+  <p class="footer__legal">Concept site. Not affiliated with Apple Inc.</p>
+  <p class="footer__tm caption">MacBook Pro, Apple M5, Liquid Retina XDR, ProMotion and MagSafe are trademarks of Apple Inc.</p>
+</footer>
+
+<script defer src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/ScrollTrigger.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/SplitText.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/lenis@1.3.4/dist/lenis.min.js"></script>
+<script defer src="js/core.js"></script>
+<script defer src="js/macbook.js"></script>
+<script defer src="js/chip.js"></script>
+<script defer src="js/sections.js"></script>
+</body>
+</html>
