@@ -1,0 +1,3 @@
+/* turntable_silver sequence manifest. Generated on 2026-09-24 11:45 by encode_sequence.sh (one run per size) after a linear-light resize and a +-2.0 level TPDF dither (blender-work/fix3/pack.py). Re-run that to change it. */
+window.SEQ = window.SEQ || {};
+window.SEQ["turntable_silver"] = {"name":"turntable_silver","frames":72,"start":1,"fps":30.0,"width":1600,"height":1000,"sizes":[{"w":1600,"h":1000,"dir":"assets/seq/turntable_silver/1600/","bytes":1940038},{"w":800,"h":500,"dir":"assets/seq/turntable_silver/800/","bytes":787272}],"pattern":"f_%04d.webp","alpha":false,"poster":"assets/seq/turntable_silver/poster.webp","posterFrame":11,"posterW":800,"posterH":500,"bytes":2742614,"format":"webp","quality":85,"dither":2.0};
