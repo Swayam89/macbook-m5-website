@@ -29,8 +29,13 @@
   import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
   import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
   import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+  // postprocessing: only what js/render-kit.js uses (it owns bloom, accumulation and grading inline)
+  import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
+  import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
+  import { Pass, FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
   window.THREE = THREE;
-  window.THREE_ADDONS = { RoomEnvironment, RoundedBoxGeometry, RectAreaLightUniformsLib, mergeGeometries };
+  window.THREE_ADDONS = { RoomEnvironment, RoundedBoxGeometry, RectAreaLightUniformsLib, mergeGeometries,
+    GTAOPass, SMAAPass, Pass, FullScreenQuad };
   window.dispatchEvent(new Event('three:ready'));
 </script>
 </head>
@@ -84,6 +89,8 @@
 
 <main id="main">
 <section id="hero" class="section hero" data-section="01" data-title="Lift the lid" data-nav-theme="dark" aria-labelledby="hero-title">
+  <!-- Blender/Cycles film (assets/seq/hero): scrubbed on a 2D canvas by the hero timeline, then handed to the real-time dive -->
+  <div class="hero__film" data-hero-film aria-hidden="true"></div>
   <i class="hero__letterbox hero__letterbox--top" aria-hidden="true"></i>
   <div class="hero__copy">
     <p class="eyebrow hero__eyebrow">MacBook Pro 14-inch · M5</p>
@@ -221,6 +228,10 @@
 </section>
 
 <section id="finish" class="section finish" data-section="09" data-title="Finish" data-theme="space-black" data-nav-theme="dark" aria-labelledby="finish-title">
+  <!-- Blender/Cycles turntables (assets/seq/turntable_*): drag and the arrow keys scrub the frames; placed over the real-time laptop -->
+  <div class="finish__film" data-finish-film aria-hidden="true">
+    <div class="finish__seq" data-finish-seq="space-black"></div>
+    <div class="finish__seq" data-finish-seq="silver"></div></div>
   <p class="finish__name" data-finish-name aria-hidden="true">Space Black</p>
   <div class="finish__copy"><p class="eyebrow">Finish</p><h2 id="finish-title">Space Black or Silver.</h2>
     <p>Two anodized aluminum finishes. Drag to turn it, or use the arrow keys.</p></div>
@@ -235,7 +246,7 @@
 <section id="finale" class="section finale" data-section="10" data-title="Lid down" data-nav-theme="dark" aria-labelledby="finale-title">
   <div class="finale__copy"><p class="eyebrow">Lid down</p><h2 id="finale-title">MacBook Pro <span class="nw">14-inch</span> with M5.</h2>
     <p class="finale__price">From $1,699 (U.S.), with 1TB of storage standard.</p>
-    <p class="finale__meta mono">Every frame on this page is rendered in code. No photographs, no video.</p>
+    <p class="finale__meta mono">Every frame on this page is rendered from code, path-traced in Blender or drawn live in your browser. No photographs.</p>
     <div class="finale__actions"><a class="btn btn--primary" href="https://www.apple.com/shop/buy-mac/macbook-pro/14-inch-m5" target="_blank" rel="noopener" data-cursor="click">See it on apple.com ↗</a>
       <button type="button" class="btn btn--ghost" data-scroll-top>Back to the lid</button></div></div>
   <dl class="finale__roll mono" data-finale-roll>
@@ -269,6 +280,15 @@
 <script defer src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/SplitText.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/lenis@1.3.4/dist/lenis.min.js"></script>
 <script defer src="js/core.js"></script>
+<script defer src="js/sequence.js"></script>
+<script defer src="assets/seq/hero/manifest.js"></script>
+<script defer src="assets/seq/hero/camera.js"></script>
+<script defer src="assets/seq/hero_portrait/manifest.js"></script>
+<script defer src="assets/seq/hero_portrait/camera.js"></script>
+<script defer src="assets/seq/turntable_space_black/manifest.js"></script>
+<script defer src="assets/seq/turntable_silver/manifest.js"></script>
+<script defer src="js/render-kit.js"></script>
+<script defer src="js/materials.js"></script>
 <script defer src="js/macbook.js"></script>
 <script defer src="js/chip.js"></script>
 <script defer src="js/sections.js"></script>
