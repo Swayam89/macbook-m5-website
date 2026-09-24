@@ -1,0 +1,3 @@
+/* hero_portrait sequence manifest. Generated on 2026-09-24 10:45 by encode_sequence.sh (one run per size) after a linear-light resize and a +-2.0 level TPDF dither (blender-work/fix3/pack.py). Re-run that to change it. */
+window.SEQ = window.SEQ || {};
+window.SEQ["hero_portrait"] = {"name":"hero_portrait","frames":120,"start":1,"fps":30.0,"width":1080,"height":2340,"sizes":[{"w":1080,"h":2340,"dir":"assets/seq/hero_portrait/1080/","bytes":2939038},{"w":720,"h":1560,"dir":"assets/seq/hero_portrait/720/","bytes":1776124}],"pattern":"f_%04d.webp","alpha":false,"poster":"assets/seq/hero_portrait/poster.webp","posterFrame":1,"posterW":720,"posterH":1560,"bytes":4719308,"format":"webp","quality":85,"dither":2.0,"camera":"assets/seq/hero_portrait/camera.js"};
