@@ -762,6 +762,20 @@
 
   function byOrder(a, b) { return (a.order - b.order) || (a.seq - b.seq); }
 
+  // Late layout (lazy images, a stacked reduced-motion layout, fonts after the 1.5 s cap) moves every
+  // trigger below it, and nothing else re-measures (autoRefreshEvents has no resize: core owns it).
+  // Re-measure when the document grows or shrinks by itself; a viewport resize stays with initResize.
+  function watchLayout() {
+    if (!ST || !('ResizeObserver' in window)) return;
+    var el = document.documentElement, h = el.scrollHeight, vw = window.innerWidth, vh = window.innerHeight;
+    ST.addEventListener('refresh', function () { h = el.scrollHeight; vw = window.innerWidth; vh = window.innerHeight; });
+    new ResizeObserver(function () {
+      if (window.innerWidth !== vw || window.innerHeight !== vh) return;
+      var n = el.scrollHeight;
+      if (Math.abs(n - h) > 2) { h = n; refreshSoon(); }
+    }).observe(document.body);
+  }
+
   function start() {
     if (booted) return;
     booted = true;
@@ -769,6 +783,7 @@
     registry.slice().sort(byOrder).forEach(runInit);
     createCoreTriggers();
     if (ST) ST.refresh();
+    watchLayout();
     if (currentSection < 0 && sections.length) setSection(0);
     log('inits + refresh', (now() - t).toFixed(1) + 'ms');
     if (DEBUG && ST) {

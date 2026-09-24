@@ -604,6 +604,27 @@
       ctx.globalCompositeOperation = 'source-over';
     }
 
+    var bandC = null;
+    function bandSprite() {
+      if (bandC) return bandC;
+      bandC = doc.createElement('canvas'); bandC.width = 160; bandC.height = 640;
+      var x = bandC.getContext('2d');
+      var gg = x.createLinearGradient(0, 0, 160, 0);
+      // across (pane widths from the old hard bands, x1.3 for the shoulders): pane A, mullion, pane B
+      [[0, 0], [0.05, 0.08], [0.1, 0.42], [0.16, 0.86], [0.24, 1], [0.44, 0.97], [0.52, 0.78], [0.58, 0.3], [0.62, 0.07],
+       [0.66, 0.05], [0.7, 0.28], [0.75, 0.72], [0.82, 0.8], [0.88, 0.5], [0.94, 0.12], [1, 0]].forEach(function (p) {
+        gg.addColorStop(p[0], 'rgba(255,255,255,' + p[1] + ')');
+      });
+      x.fillStyle = gg; x.fillRect(0, 0, 160, 640);
+      x.globalCompositeOperation = 'destination-in';
+      var gv = x.createLinearGradient(0, 0, 0, 640);
+      [[0, 0], [0.12, 0.12], [0.3, 0.7], [0.44, 1], [0.58, 0.92], [0.76, 0.42], [0.9, 0.1], [1, 0]].forEach(function (p) {
+        gv.addColorStop(p[0], 'rgba(0,0,0,' + p[1] + ')');
+      });
+      x.fillStyle = gv; x.fillRect(0, 0, 160, 640);
+      return bandC;
+    }
+
     function drawBand(R) {
       if (S.band < 0.004) return;
       var bx = R.x + band.x * R.w, cy = R.y + R.h / 2;
@@ -613,15 +634,16 @@
       ctx.beginPath(); ctx.rect(R.x, R.y, R.w, R.h); ctx.clip();
       ctx.translate(bx, cy);
       ctx.rotate(-0.36);
-      var gA = 0.25 * S.band * (1 - S.glass);
+      var gA = 0.3 * S.band * (1 - S.glass);
       if (gA > 0.003) {
-        var gg = ctx.createLinearGradient(-bw / 2, 0, bw / 2, 0);
-        gg.addColorStop(0, 'rgba(255,255,255,0)'); gg.addColorStop(0.015, 'rgba(255,255,255,' + gA + ')');
-        gg.addColorStop(0.62, 'rgba(255,255,255,' + gA + ')'); gg.addColorStop(0.64, 'rgba(255,255,255,0)');
-        gg.addColorStop(0.78, 'rgba(255,255,255,0)'); gg.addColorStop(0.79, 'rgba(255,255,255,' + gA * 0.8 + ')');
-        gg.addColorStop(0.985, 'rgba(255,255,255,' + gA * 0.8 + ')'); gg.addColorStop(1, 'rgba(255,255,255,0)');
-        ctx.fillStyle = gg;
-        ctx.fillRect(-bw / 2, -L, bw, L * 2);
+        // a softbox window mirrored in glossy glass: two panes with soft (gaussian) shoulders and a mullion,
+        // brightest a little above the middle and fading out along its length, added with 'lighter' so it
+        // brightens the zones it crosses instead of laying a flat grey film over them
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = Math.min(1, gA);
+        ctx.drawImage(bandSprite(), -bw * 0.65, -L * 0.62, bw * 1.3, L * 1.24);
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = 'source-over';
       }
       // Nano-texture: the same band diffused (a gaussian-profile gradient ~ blur(24px)) at 12%.
       var nA = 0.12 * S.band * S.glass;
