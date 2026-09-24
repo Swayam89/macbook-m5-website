@@ -18,6 +18,13 @@
    01 #hero: product-film opening (transparent over the fixed stage)
    ========================================================================== */
 .hero{display:grid;color:var(--text-dark)}
+/* Blender/Cycles film (js/macbook.js section 10b): a 2D canvas over the fixed stage for p 0-.86; its opacity
+   is written per frame, and it stays at 0 until the film has drawn (phones and no-JS keep the stage). */
+.hero__film{position:absolute;inset:0;z-index:0;opacity:0;pointer-events:none;overflow:hidden}
+.hero__film .seq__canvas{position:absolute;inset:0;width:100%;height:100%;display:block;transform:scale(var(--film-zoom,1));transform-origin:var(--film-origin,50% 50%)}
+html:not(.js) .hero__film,html:not(.js) .finish__film{display:none}
+/* while a film covers the stage the WebGL canvas hides and stops rendering; --stage-bg stays */
+.mac-stage.is-covered .mac-stage__canvas{visibility:hidden}
 .hero__letterbox{
   position:absolute;left:0;right:0;height:48px;background:var(--black);z-index:var(--z-section-ui);
   transform:scaleY(0);will-change:transform;pointer-events:none;
@@ -71,6 +78,8 @@
 html.js:not(.is-loaded) .hero__copy,html.js:not(.is-loaded) .hero__peek,html.js:not(.is-loaded) .hero__cue{visibility:hidden;animation:show-failsafe 0s linear 9.5s forwards}
 @keyframes show-failsafe{to{visibility:visible}}
 html.is-reduced .hero__letterbox{transform:scaleY(0)}
+/* reduced motion: the hero is one still (no lid to lift), so there is nothing to peek at */
+html.is-reduced .hero__peek{display:none}
 /* RM still is the open lid (pose B): the copy steps aside to the left on a soft void scrim. */
 @media (min-width:769px){
   html.is-reduced .hero__copy{left:var(--gutter);right:auto;top:50%;transform:translateY(-50%);text-align:left;width:min(34rem,42vw);padding:0}
@@ -509,6 +518,11 @@ html.is-reduced .material__plate{display:none}
 .finish__copy h2{margin-bottom:var(--space-4)}
 .finish__copy p{color:var(--fg-muted);max-width:30ch;transition:color var(--dur-sweep) var(--ease-state)}
 .finish .eyebrow{transition:color var(--dur-sweep) var(--ease-state)}
+/* Cycles turntables: boxes placed over the real-time laptop by macbook.js (--tt-x/-y/-w), 1600:1000 frames */
+.finish__film{position:absolute;inset:0;z-index:0;pointer-events:none}
+.finish__seq{position:absolute;left:var(--tt-x,0px);top:var(--tt-y,0px);width:var(--tt-w,100%);aspect-ratio:1600/1000;opacity:0}
+.finish__seq .seq__canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.finish .toggle:disabled{opacity:.45;cursor:not-allowed}
 .finish__hit{position:absolute;z-index:2;inset:24% 18% 18% 18%;touch-action:pan-y;cursor:grab;border-radius:var(--r-screen)}
 .finish.is-dragging .finish__hit{cursor:grabbing}
 .finish.is-dragging{user-select:none;-webkit-user-select:none}
