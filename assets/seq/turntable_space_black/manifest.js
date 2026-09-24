@@ -1,0 +1,3 @@
+/* turntable_space_black sequence manifest. Generated on 2026-09-24 11:35 by encode_sequence.sh (one run per size) after a linear-light resize and a +-2.0 level TPDF dither (blender-work/fix3/pack.py). Re-run that to change it. */
+window.SEQ = window.SEQ || {};
+window.SEQ["turntable_space_black"] = {"name":"turntable_space_black","frames":72,"start":1,"fps":30.0,"width":1600,"height":1000,"sizes":[{"w":1600,"h":1000,"dir":"assets/seq/turntable_space_black/1600/","bytes":1676532},{"w":800,"h":500,"dir":"assets/seq/turntable_space_black/800/","bytes":701952}],"pattern":"f_%04d.webp","alpha":false,"poster":"assets/seq/turntable_space_black/poster.webp","posterFrame":11,"posterW":800,"posterH":500,"bytes":2392198,"format":"webp","quality":85,"dither":2.0};
