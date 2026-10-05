@@ -125,7 +125,7 @@ final class SpaceSession: NSObject {
         unreadCount = newCount
     }
 
-    private func observe<Value>(
+    private func observe<Value: Sendable>(
         _ keyPath: KeyPath<WKWebView, Value>,
         _ apply: @escaping @MainActor (SpaceSession, Value) -> Void
     ) {

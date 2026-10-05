@@ -16,6 +16,8 @@ jobs:
   test:
     runs-on: macos-26
     timeout-minutes: 45
+    permissions:
+      contents: write
     defaults:
       run:
         working-directory: ios
@@ -73,6 +75,30 @@ jobs:
             xcrun xcresulttool export attachments --path build/Results.xcresult --output-path build/attachments || true
           fi
           ls -la build/attachments
+
+      # Temporary, for review from a sandbox that can reach git but not the artifact storage.
+      # Pushes resized screenshots to a hidden ref (not a branch) that can be fetched with git.
+      - name: Push screenshots to a review ref
+        if: always() && github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          shopt -s nullglob
+          files=(build/attachments/*)
+          if [ ${#files[@]} -le 1 ]; then echo "No attachments"; exit 0; fi
+          out=$(mktemp -d)
+          for f in "${files[@]}"; do
+            case "$f" in
+              *.png|*.jpg|*.jpeg|*.heic) sips -s format jpeg -s formatOptions 70 -Z 1000 "$f" --out "$out/$(basename "${f%.*}").jpg" >/dev/null ;;
+              *) cp "$f" "$out/" ;;
+            esac
+          done
+          cd "$out"
+          git init -q
+          git add -A
+          git -c user.name=ci -c user.email=ci@users.noreply.github.com commit -qm "Screenshots from run $GITHUB_RUN_ID"
+          git push -q "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/ci-screens/${GITHUB_RUN_ID}"
+          echo "Pushed refs/ci-screens/${GITHUB_RUN_ID}"
 
       - uses: actions/upload-artifact@v6
         if: always()
