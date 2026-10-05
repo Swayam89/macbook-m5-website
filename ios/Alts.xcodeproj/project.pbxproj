@@ -27,7 +27,6 @@
 		7A0C1E000000000000000101 /* Alts.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Alts.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		7A0C1E000000000000000201 /* AltsTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AltsTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		7A0C1E000000000000000301 /* AltsUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AltsUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		7A0C1E0000000000000000F6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -79,7 +78,6 @@
 				7A0C1E000000000000000102 /* Alts */,
 				7A0C1E000000000000000202 /* AltsTests */,
 				7A0C1E000000000000000302 /* AltsUITests */,
-				7A0C1E0000000000000000F7 /* Support */,
 				7A0C1E0000000000000000F2 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -92,14 +90,6 @@
 				7A0C1E000000000000000301 /* AltsUITests.xctest */,
 			);
 			name = Products;
-			sourceTree = "<group>";
-		};
-		7A0C1E0000000000000000F7 /* Support */ = {
-			isa = PBXGroup;
-			children = (
-				7A0C1E0000000000000000F6 /* Info.plist */,
-			);
-			path = Support;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -353,13 +343,12 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = Support/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Alts;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.social-networking";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Sites you open in a space can ask to use the camera, for example to scan a QR code or start a video call.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Face ID unlocks spaces you have chosen to lock.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Sites you open in a space can ask to use the microphone, for example to record a voice note or join a call.";
-				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Alts saves images you choose to download to your photo library.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Lets you save images you download in a space to your photo library.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -386,13 +375,12 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = Support/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Alts;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.social-networking";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Sites you open in a space can ask to use the camera, for example to scan a QR code or start a video call.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Face ID unlocks spaces you have chosen to lock.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Sites you open in a space can ask to use the microphone, for example to record a voice note or join a call.";
-				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Alts saves images you choose to download to your photo library.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Lets you save images you download in a space to your photo library.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

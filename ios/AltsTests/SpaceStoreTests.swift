@@ -28,7 +28,9 @@ struct SpaceStoreTests {
         let a = Space(name: "A", service: .telegram, tint: .graphite)
         let b = Space(name: "B", service: .telegram, tint: .graphite)
         let c = Space(name: "C", service: .telegram, tint: .graphite)
-        [a, b, c].forEach(store.add)
+        for space in [a, b, c] {
+            store.add(space)
+        }
 
         store.move(fromOffsets: IndexSet(integer: 2), toOffset: 0)
 

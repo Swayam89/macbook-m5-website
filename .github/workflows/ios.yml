@@ -51,6 +51,9 @@ jobs:
           echo "SIM_ID=$id" >> "$GITHUB_ENV"
 
       - name: Build and test
+        env:
+          # Turns on ServiceProbeTests, which loads every built-in site and attaches screenshots.
+          TEST_RUNNER_ALTS_PROBE: "1"
         run: |
           set -o pipefail
           mkdir -p build
@@ -60,22 +63,22 @@ jobs:
             -destination "platform=iOS Simulator,id=$SIM_ID" \
             -resultBundlePath build/Results.xcresult \
             CODE_SIGNING_ALLOWED=NO \
-            | tee build/xcodebuild.log | xcbeautify --renderer github-actions
+            2>&1 | tee build/xcodebuild.log | { if command -v xcbeautify >/dev/null; then xcbeautify --renderer github-actions; else cat; fi; }
 
       - name: Export screenshots
         if: always()
         run: |
-          mkdir -p build/screens
+          mkdir -p build/attachments
           if [ -d build/Results.xcresult ]; then
-            xcrun xcresulttool export attachments --path build/Results.xcresult --output-path build/screens || true
+            xcrun xcresulttool export attachments --path build/Results.xcresult --output-path build/attachments || true
           fi
-          ls -la build/screens
+          ls -la build/attachments
 
       - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: alts-results
           path: |
-            ios/build/screens
+            ios/build/attachments
             ios/build/xcodebuild.log
           if-no-files-found: ignore
