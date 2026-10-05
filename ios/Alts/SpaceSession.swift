@@ -126,13 +126,14 @@ final class SpaceSession: NSObject {
     }
 
     private func observe<Value>(
-        _ keyPath: KeyPath<WKWebView, Value> & Sendable,
+        _ keyPath: KeyPath<WKWebView, Value>,
         _ apply: @escaping @MainActor (SpaceSession, Value) -> Void
     ) {
-        let observation = webView.observe(keyPath, options: [.initial, .new]) { [weak self] webView, _ in
+        let observation = webView.observe(keyPath, options: [.initial, .new]) { [weak self] _, change in
+            guard let value = change.newValue else { return }
             MainActor.assumeIsolated {
                 guard let self else { return }
-                apply(self, webView[keyPath: keyPath])
+                apply(self, value)
             }
         }
         observations.append(observation)
