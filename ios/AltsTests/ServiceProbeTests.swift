@@ -48,7 +48,15 @@ final class ServiceProbeTests: XCTestCase {
         try await Task.sleep(for: .seconds(6))
 
         let userAgent = (try? await session.webView.callAsyncJavaScript("return navigator.userAgent", contentWorld: .page)) as? String ?? "?"
-        let line = "\(label): url=\(session.webView.url?.absoluteString ?? "nil") title=\"\(session.title)\" error=\(session.loadError ?? "none") ua=\(userAgent)"
+        let visibleText = (try? await session.webView.callAsyncJavaScript(
+            "return ((document.body && document.body.innerText) || '').replace(/\\s+/g, ' ').trim().slice(0, 240)",
+            contentWorld: .page
+        )) as? String ?? ""
+        let line = """
+            \(label): url=\(session.webView.url?.absoluteString ?? "nil") title="\(session.title)" error=\(session.loadError ?? "none")
+              ua=\(userAgent)
+              text=\(visibleText)
+            """
 
         if let image = try? await session.webView.takeSnapshot(configuration: nil) {
             let attachment = XCTAttachment(image: image)

@@ -6,6 +6,7 @@ import WebKit
 /// The whole app rests on one promise: two spaces never share a login. These tests check it
 /// against real WebKit, not a mock.
 @MainActor
+@Suite(.timeLimit(.minutes(2)))
 struct IsolationTests {
     @Test func cookiesStayInTheirOwnSpace() async throws {
         let first = WKWebsiteDataStore(forIdentifier: UUID())

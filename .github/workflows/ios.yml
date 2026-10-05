@@ -74,6 +74,33 @@ jobs:
           fi
           ls -la build/attachments
 
+      # Temporary: prints the probe summary and a few small screenshots into the log, for review
+      # from an environment that can't download artifacts. Remove once reviewed.
+      - name: Print review material
+        if: always()
+        run: |
+          [ -f build/attachments/manifest.json ] || exit 0
+          /usr/bin/python3 - <<'PY'
+          import base64, json, os, subprocess, tempfile
+          found = {}
+          for test in json.load(open("build/attachments/manifest.json")):
+              for a in test.get("attachments", []):
+                  key = a.get("suggestedHumanReadableName", "").split("_0_")[0]
+                  found[key] = os.path.join("build/attachments", a["exportedFileName"])
+          if "probe-summary" in found:
+              print("=== probe-summary")
+              print(open(found["probe-summary"]).read())
+          for key in ["6-list", "2-new-space", "4-space-open", "8-edit-space"]:
+              if key not in found:
+                  continue
+              out = tempfile.mktemp(suffix=".jpg")
+              subprocess.run(["sips", "-s", "format", "jpeg", "-s", "formatOptions", "45", "-Z", "640", found[key], "--out", out], check=True, capture_output=True)
+              data = base64.b64encode(open(out, "rb").read()).decode()
+              print(f"=== {key} {len(data)}")
+              for i in range(0, len(data), 4000):
+                  print(data[i:i + 4000])
+          PY
+
       - uses: actions/upload-artifact@v6
         if: always()
         with:

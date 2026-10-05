@@ -21,7 +21,15 @@ final class AltsUITests: XCTestCase {
         attachScreenshot(of: app, named: "2-new-space")
 
         app.staticTexts["Site"].tap()
-        app.staticTexts["Other Website"].tap()
+        // "Other Website" is last in the list and starts below the fold, and lists only build visible rows.
+        let otherWebsite = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label == %@", "Other Website")).firstMatch
+        var swipes = 0
+        while !otherWebsite.isHittable && swipes < 4 {
+            app.swipeUp()
+            swipes += 1
+        }
+        otherWebsite.tap()
 
         let address = app.textFields["address-field"]
         XCTAssertTrue(address.waitForExistence(timeout: 5))
