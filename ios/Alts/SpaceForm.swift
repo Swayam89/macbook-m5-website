@@ -226,7 +226,8 @@ struct TintPicker: View {
     @Binding var selection: Tint
 
     var body: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 44), spacing: 4)], spacing: 4) {
+        // One row of eight. An adaptive grid left a single swatch on a second line.
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 0), count: Tint.allCases.count), spacing: 0) {
             ForEach(Tint.allCases, id: \.self) { tint in
                 Button {
                     selection = tint
@@ -241,7 +242,7 @@ struct TintPicker: View {
                                     .foregroundStyle(.white)
                             }
                         }
-                        .frame(width: 44, height: 44)
+                        .frame(maxWidth: .infinity, minHeight: 44)
                         .contentShape(.rect)
                 }
                 .buttonStyle(.plain)

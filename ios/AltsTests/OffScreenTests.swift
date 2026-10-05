@@ -6,12 +6,12 @@ import UIKit
 /// Unread counts and Alerts While Open depend on pages that are off screen still running.
 /// This measures that against real WebKit with a page whose title counts up once a second.
 @MainActor
-@Suite(.timeLimit(.minutes(2)))
+@Suite(.serialized, .timeLimit(.minutes(2)))
 struct OffScreenTests {
     @Test func cachedSpacesKeepRunningOffScreen() async throws {
         let space = Space(name: "Ticker", service: .custom, customURL: URL(string: "about:blank"), tint: .moss)
         let session = SpaceSession(space: space)
-        let window = try makeWindow()
+        let window = try TestWindow.make()
         defer {
             session.tearDown()
             window.isHidden = true
@@ -34,14 +34,5 @@ struct OffScreenTests {
         let after = session.unreadCount ?? 0
 
         #expect(after - before >= 10, "count went from \(before) to \(after) in 20 seconds off screen")
-    }
-
-    private func makeWindow() throws -> UIWindow {
-        let scene = try #require(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
-        let window = UIWindow(windowScene: scene)
-        window.frame = scene.coordinateSpace.bounds
-        window.rootViewController = UIViewController()
-        window.makeKeyAndVisible()
-        return window
     }
 }

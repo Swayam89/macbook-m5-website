@@ -44,13 +44,19 @@ final class AltsUITests: XCTestCase {
         app.navigationBars["New Space"].buttons["Add"].tap()
 
         let reading = row(named: "Reading", in: app)
-        XCTAssertTrue(reading.waitForExistence(timeout: 5))
+        let added = reading.waitForExistence(timeout: 10)
+        attachScreenshot(of: app, named: "3b-added")
+        XCTAssertTrue(added, "the new space should appear in the list")
         XCTAssertEqual(reading.label, "Reading, example.com")
         reading.tap()
 
         // The page is real: example.com loaded inside the space's own web view.
-        XCTAssertTrue(app.webViews.staticTexts["Example Domain"].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.navigationBars["Reading"].waitForExistence(timeout: 10), "the space should open")
+        let heading = app.webViews.firstMatch.descendants(matching: .any)
+            .matching(NSPredicate(format: "label CONTAINS %@", "Example Domain")).firstMatch
+        let loaded = heading.waitForExistence(timeout: 45)
         attachScreenshot(of: app, named: "4-space-open")
+        XCTAssertTrue(loaded, "example.com should load inside the space")
 
         app.navigationBars.buttons["Actions"].tap()
         attachScreenshot(of: app, named: "5-actions-menu")

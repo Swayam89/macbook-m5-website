@@ -32,13 +32,11 @@ final class ServiceProbeTests: XCTestCase {
     @MainActor
     private func probe(_ space: Space, label: String) async throws -> String {
         let session = SpaceSession(space: space)
-        let window = try makeWindow()
-        let host = UIViewController()
-        window.rootViewController = host
-        session.webView.frame = host.view.bounds
+        let window = try TestWindow.make()
+        let host = try XCTUnwrap(window.rootViewController?.view)
+        session.webView.frame = host.bounds
         session.webView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        host.view.addSubview(session.webView)
-        window.makeKeyAndVisible()
+        host.addSubview(session.webView)
 
         let deadline = Date.now.addingTimeInterval(25)
         while Date.now < deadline && (session.isLoading || session.webView.url == nil) {
@@ -68,14 +66,5 @@ final class ServiceProbeTests: XCTestCase {
         session.tearDown()
         window.isHidden = true
         return line
-    }
-
-    @MainActor
-    private func makeWindow() throws -> UIWindow {
-        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
-        let window = UIWindow(windowScene: scene)
-        window.frame = scene.coordinateSpace.bounds
-        window.windowLevel = .alert + 1
-        return window
     }
 }

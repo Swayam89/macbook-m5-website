@@ -3,7 +3,7 @@ import Testing
 @testable import Alts
 
 @MainActor
-@Suite(.timeLimit(.minutes(2)))
+@Suite(.serialized, .timeLimit(.minutes(2)))
 struct SessionCacheTests {
     private func blankSpace(_ name: String, desktop: Bool = false) -> Space {
         Space(name: name, service: .custom, customURL: URL(string: "about:blank"), tint: .graphite, desktopSite: desktop)

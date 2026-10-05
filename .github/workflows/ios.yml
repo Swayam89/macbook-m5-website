@@ -15,7 +15,7 @@ concurrency:
 jobs:
   test:
     runs-on: macos-26
-    timeout-minutes: 45
+    timeout-minutes: 50
     defaults:
       run:
         working-directory: ios
@@ -50,47 +50,77 @@ jobs:
           ')
           echo "SIM_ID=$id" >> "$GITHUB_ENV"
 
-      - name: Build and test
-        env:
-          # Turns on ServiceProbeTests, which loads every built-in site and attaches screenshots.
-          TEST_RUNNER_ALTS_PROBE: "1"
+      - name: Build
+        id: build
         run: |
           set -o pipefail
           mkdir -p build
-          xcodebuild test \
-            -project Alts.xcodeproj \
-            -scheme Alts \
+          xcodebuild build-for-testing \
+            -project Alts.xcodeproj -scheme Alts \
             -destination "platform=iOS Simulator,id=$SIM_ID" \
-            -resultBundlePath build/Results.xcresult \
+            -derivedDataPath build/DerivedData \
             CODE_SIGNING_ALLOWED=NO \
-            2>&1 | tee build/xcodebuild.log | { if command -v xcbeautify >/dev/null; then xcbeautify --renderer github-actions; else cat; fi; }
+            2>&1 | tee build/build.log | { if command -v xcbeautify >/dev/null; then xcbeautify --renderer github-actions; else cat; fi; }
+
+      - name: Unit and UI tests
+        run: |
+          set -o pipefail
+          xcodebuild test-without-building \
+            -project Alts.xcodeproj -scheme Alts \
+            -destination "platform=iOS Simulator,id=$SIM_ID" \
+            -derivedDataPath build/DerivedData \
+            -skip-testing:AltsTests/ServiceProbeTests \
+            -resultBundlePath build/Tests.xcresult \
+            2>&1 | tee build/tests.log | { if command -v xcbeautify >/dev/null; then xcbeautify --renderer github-actions; else cat; fi; }
+
+      # Loads every built-in site and records what it shows. Sites change on their own schedule,
+      # so this reports instead of failing the build.
+      - name: Probe built-in sites
+        if: always() && steps.build.outcome == 'success'
+        continue-on-error: true
+        env:
+          TEST_RUNNER_ALTS_PROBE: "1"
+        run: |
+          set -o pipefail
+          xcodebuild test-without-building \
+            -project Alts.xcodeproj -scheme Alts \
+            -destination "platform=iOS Simulator,id=$SIM_ID" \
+            -derivedDataPath build/DerivedData \
+            -only-testing:AltsTests/ServiceProbeTests \
+            -resultBundlePath build/Probe.xcresult \
+            2>&1 | tee build/probe.log | { if command -v xcbeautify >/dev/null; then xcbeautify --renderer github-actions; else cat; fi; }
 
       - name: Export screenshots
         if: always()
         run: |
-          mkdir -p build/attachments
-          if [ -d build/Results.xcresult ]; then
-            xcrun xcresulttool export attachments --path build/Results.xcresult --output-path build/attachments || true
-          fi
-          ls -la build/attachments
+          for bundle in Tests Probe; do
+            mkdir -p "build/attachments/$bundle"
+            if [ -d "build/$bundle.xcresult" ]; then
+              xcrun xcresulttool export attachments --path "build/$bundle.xcresult" --output-path "build/attachments/$bundle" || true
+            fi
+          done
+          ls -la build/attachments/*
 
-      # Temporary: prints the probe summary and a few small screenshots into the log, for review
-      # from an environment that can't download artifacts. Remove once reviewed.
+      # Temporary: prints the probe summary, the UI hierarchy of any failed UI test, and a few
+      # small screenshots into the log, for review from an environment that can't download
+      # artifacts. Remove once reviewed.
       - name: Print review material
         if: always()
         run: |
-          [ -f build/attachments/manifest.json ] || exit 0
           /usr/bin/python3 - <<'PY'
-          import base64, json, os, subprocess, tempfile
+          import base64, glob, json, os, subprocess, tempfile
           found = {}
-          for test in json.load(open("build/attachments/manifest.json")):
-              for a in test.get("attachments", []):
-                  key = a.get("suggestedHumanReadableName", "").split("_0_")[0]
-                  found[key] = os.path.join("build/attachments", a["exportedFileName"])
-          if "probe-summary" in found:
-              print("=== probe-summary")
-              print(open(found["probe-summary"]).read())
-          for key in ["6-list", "2-new-space", "4-space-open", "8-edit-space"]:
+          for manifest in glob.glob("build/attachments/*/manifest.json"):
+              folder = os.path.dirname(manifest)
+              for test in json.load(open(manifest)):
+                  for a in test.get("attachments", []):
+                      key = a.get("suggestedHumanReadableName", "").split("_0_")[0]
+                      found[key] = os.path.join(folder, a["exportedFileName"])
+          for key, path in found.items():
+              if key == "probe-summary" or key.startswith("App UI hierarchy"):
+                  print(f"=== {key}")
+                  print(open(path, errors="replace").read()[:12000])
+          for key in ["6-list", "3b-added", "4-space-open", "9-site-list"]:
               if key not in found:
                   continue
               out = tempfile.mktemp(suffix=".jpg")
@@ -107,5 +137,5 @@ jobs:
           name: alts-results
           path: |
             ios/build/attachments
-            ios/build/xcodebuild.log
+            ios/build/*.log
           if-no-files-found: ignore

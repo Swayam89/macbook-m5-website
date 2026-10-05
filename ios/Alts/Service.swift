@@ -75,7 +75,7 @@ enum Service: String, CaseIterable, Identifiable, Codable, Sendable {
     var caveat: String? {
         switch self {
         case .whatsApp:
-            "WhatsApp on the web runs as a linked device, so the account has to be active on another phone. Link it there under Linked Devices, by QR code or with a phone number code. WhatsApp's own app can also hold two accounts."
+            "WhatsApp's website works as a linked device, so the account has to stay active on another phone. If it suggests downloading the app, tap Continue to WhatsApp Web, then link it from that phone under Linked Devices. WhatsApp's own app can also hold two accounts."
         case .messenger:
             "Messenger's website closed in 2026, so this opens your messages on facebook.com. You need a Facebook account."
         case .discord, .slack:
