@@ -62,19 +62,28 @@ There are no third-party dependencies. The project uses Xcode's folder-synchroni
 
 ### Tests
 
-- `AltsTests`: the space list and its file format, address parsing, unread-count parsing, the session cache, and isolation between data stores using real WebKit.
+- `AltsTests`: the space list and its file format (including entries it can't read), address and unread-count parsing, the session cache, the launch cleanup that must never delete data it wasn't told to, and isolation between spaces using real WebKit: cookies, localStorage and IndexedDB stay in their own space, and localStorage is still there after a space's page is closed and reopened.
+- `OffScreenTests` checks that a space you switched away from keeps running, and `PlacementMeasurementTests` records how WebKit treats a page in different off-screen positions.
 - `AltsUITests`: adds a space for example.com, opens it and checks the page loaded, and walks the list, context menu and edit screen. Screenshots are attached to the test results.
-- `ServiceProbeTests`: loads every built-in site in a real space and attaches a screenshot plus the final URL and user agent. It needs the network and only runs with `ALTS_PROBE=1`.
+- `ServiceProbeTests`: loads every built-in site in a real space and attaches a screenshot plus the final URL, title and user agent. It needs the network and only runs when `ALTS_PROBE=1` reaches the test host.
 
 From Terminal:
 
 ```sh
 cd ios
 xcodebuild test -project Alts.xcodeproj -scheme Alts \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' CODE_SIGNING_ALLOWED=NO
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+  -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO
+
+# The site probe. xcodebuild passes TEST_RUNNER_ variables to the test host without the prefix.
+TEST_RUNNER_ALTS_PROBE=1 xcodebuild test -project Alts.xcodeproj -scheme Alts \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+  -only-testing:AltsTests/ServiceProbeTests CODE_SIGNING_ALLOWED=NO
 ```
 
-CI runs the same thing on every push that touches `ios/` (`.github/workflows/ios.yml`) and uploads the screenshots as the `alts-results` artifact.
+In Xcode, set `ALTS_PROBE` to `1` under the scheme's Test action, in Arguments, Environment Variables.
+
+CI (`.github/workflows/ios.yml`) builds once, then runs the unit and UI tests on one simulator at a time. It runs the site probe only when the workflow is started by hand. It currently builds with Xcode 26.6 and tests on the iOS 26.5 simulator, the newest stable pair on GitHub's macOS runners; it has not run on iOS 27 or on a physical iPhone.
 
 ## Before submitting to the App Store
 

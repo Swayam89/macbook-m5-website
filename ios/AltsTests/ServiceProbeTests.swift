@@ -51,7 +51,7 @@ final class ServiceProbeTests: XCTestCase {
             contentWorld: .page
         )) as? String ?? ""
         let line = """
-            \(label): url=\(session.webView.url?.absoluteString ?? "nil") title="\(session.title)" error=\(session.loadError ?? "none")
+            \(label): url=\(session.webView.url?.absoluteString ?? "nil") title="\(session.title)" error=\(session.loadError ?? "none") stillLoading=\(session.isLoading)
               ua=\(userAgent)
               text=\(visibleText)
             """
