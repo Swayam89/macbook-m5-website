@@ -3,6 +3,7 @@ import SwiftUI
 struct SpaceListView: View {
     @Environment(SpaceStore.self) private var store
     @Environment(SessionCache.self) private var sessions
+    @Environment(LockState.self) private var locks
     @State private var isAdding = false
     @State private var editing: Space?
     @State private var deleting: Space?
@@ -11,7 +12,12 @@ struct SpaceListView: View {
         List {
             ForEach(store.spaces) { space in
                 NavigationLink(value: space.id) {
-                    SpaceRow(space: space, unreadCount: sessions.existingSession(for: space.id)?.unreadCount)
+                    SpaceRow(
+                        space: space,
+                        // A locked space's activity stays private until it's unlocked.
+                        unread: locks.isUnlocked(space) ? sessions.existingSession(for: space.id)?.unread : nil,
+                        lockName: locks.methodName
+                    )
                 }
                 .swipeActions {
                     Button("Delete", systemImage: "trash") {
@@ -19,12 +25,12 @@ struct SpaceListView: View {
                     }
                     .tint(.red)
                     Button("Edit", systemImage: "slider.horizontal.3") {
-                        editing = space
+                        Task { await edit(space) }
                     }
                 }
                 .contextMenu {
                     Button("Edit Space", systemImage: "slider.horizontal.3") {
-                        editing = space
+                        Task { await edit(space) }
                     }
                     Button("Delete", systemImage: "trash", role: .destructive) {
                         deleting = space
@@ -40,8 +46,12 @@ struct SpaceListView: View {
                 } description: {
                     Text("A space is a separate, signed-in copy of a site. Add one for each account you want to keep open.")
                 } actions: {
-                    Button("Add Space") {
+                    Button {
                         isAdding = true
+                    } label: {
+                        // System background on the accent keeps the label readable in light and dark mode.
+                        Text("Add Space")
+                            .foregroundStyle(Color(.systemBackground))
                     }
                     .buttonStyle(.borderedProminent)
                 }
@@ -73,18 +83,32 @@ struct SpaceListView: View {
             presenting: deleting
         ) { space in
             Button("Delete Space", role: .destructive) {
-                sessions.erase(space.id)
-                store.remove(id: space.id)
+                Task { await delete(space) }
             }
         } message: { _ in
             Text("This signs you out and erases everything the site saved in this space.")
         }
     }
+
+    /// A locked space asks for Face ID before its settings open.
+    private func edit(_ space: Space) async {
+        if await locks.confirm(space, reason: "Edit \(space.name)") {
+            editing = space
+        }
+    }
+
+    private func delete(_ space: Space) async {
+        guard await locks.confirm(space, reason: "Delete \(space.name)") else { return }
+        sessions.erase(space.id)
+        store.remove(id: space.id)
+    }
 }
 
 struct SpaceRow: View {
     let space: Space
-    let unreadCount: Int?
+    let unread: UnreadCount?
+    /// "Face ID", "Touch ID" or "Passcode", for the VoiceOver description of a locked space.
+    let lockName: String
 
     var body: some View {
         HStack(spacing: 12) {
@@ -102,8 +126,8 @@ struct SpaceRow: View {
                 .foregroundStyle(.secondary)
             }
             Spacer(minLength: 8)
-            if let unreadCount, unreadCount > 0 {
-                Text(unreadCount, format: .number)
+            if let unread, unread.value > 0 {
+                Text(unread.text)
                     .font(.subheadline.weight(.semibold).monospacedDigit())
                     .foregroundStyle(Color(.systemBackground))
                     .padding(.horizontal, 7)
@@ -118,8 +142,10 @@ struct SpaceRow: View {
 
     private var accessibilityText: String {
         var parts = [space.name, space.siteName]
-        if space.requiresUnlock { parts.append("Locked") }
-        if let unreadCount, unreadCount > 0 { parts.append("\(unreadCount) unread") }
+        if space.requiresUnlock { parts.append("Requires \(lockName)") }
+        if let unread, unread.value > 0 {
+            parts.append(unread.isCapped ? "more than \(unread.value) unread" : "\(unread.value) unread")
+        }
         return parts.joined(separator: ", ")
     }
 }

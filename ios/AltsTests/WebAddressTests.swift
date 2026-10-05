@@ -38,16 +38,21 @@ struct UnreadCountTests {
     @Test(arguments: [
         ("(3) WhatsApp", 3),
         ("(12) Facebook", 12),
-        ("(99+) Discord | #general", 99),
         ("  (1) Home / X", 1),
     ])
     func readsTheLeadingCount(title: String, expected: Int) {
-        #expect(SpaceSession.unreadCount(fromTitle: title) == expected)
+        #expect(UnreadCount.parse(title: title) == UnreadCount(value: expected, isCapped: false))
+    }
+
+    @Test func keepsTheCapOnLargeCounts() {
+        let count = UnreadCount.parse(title: "(99+) Discord | #general")
+        #expect(count == UnreadCount(value: 99, isCapped: true))
+        #expect(count?.text == "99+")
     }
 
     @Test(arguments: ["WhatsApp", "Telegram Web", "Inbox (3)", "(three) unread", ""])
     func ignoresTitlesWithoutOne(title: String) {
-        #expect(SpaceSession.unreadCount(fromTitle: title) == nil)
+        #expect(UnreadCount.parse(title: title) == nil)
     }
 }
 

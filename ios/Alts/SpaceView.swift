@@ -8,20 +8,12 @@ struct SpaceView: View {
     @Environment(SessionCache.self) private var sessions
     @Environment(LockState.self) private var locks
     @Environment(Navigator.self) private var navigator
-    @Environment(\.scenePhase) private var scenePhase
     @State private var editing: Space?
 
     var body: some View {
         Group {
             if let space = store.space(with: spaceID) {
                 content(for: space)
-                    .overlay {
-                        // Covers the page before iOS takes the app switcher snapshot. It's an overlay so the
-                        // lock screen underneath keeps its identity and doesn't prompt again after a cancel.
-                        if space.requiresUnlock && scenePhase != .active {
-                            LockedView(space: space, showsUnlockButton: false)
-                        }
-                    }
                     .navigationTitle(space.name)
                     .toolbarTitleMenu {
                         Picker("Space", selection: Binding(get: { spaceID }, set: { navigator.show($0) })) {
@@ -31,8 +23,11 @@ struct SpaceView: View {
                         }
                     }
                     .toolbar {
-                        ToolbarItem(placement: .topBarTrailing) {
-                            actionsMenu(for: space)
+                        // Nothing about a locked space's page is reachable until it's unlocked.
+                        if locks.isUnlocked(space) {
+                            ToolbarItem(placement: .topBarTrailing) {
+                                actionsMenu(for: space)
+                            }
                         }
                     }
                     .onChange(of: shouldStartSession(for: space), initial: true) { _, start in
@@ -54,15 +49,15 @@ struct SpaceView: View {
         sessions.existingSession(for: spaceID)
     }
 
-    /// A session starts once the space is unlocked, and starts again if an edit replaced it.
+    /// A session starts once the space is unlocked, and starts again if an edit replaced it or its data was cleared.
     private func shouldStartSession(for space: Space) -> Bool {
-        locks.isUnlocked(space) && session == nil
+        locks.isUnlocked(space) && session == nil && !sessions.clearing.contains(space.id)
     }
 
     @ViewBuilder
     private func content(for space: Space) -> some View {
         if !locks.isUnlocked(space) {
-            LockedView(space: space, showsUnlockButton: true) {
+            LockedView(space: space) {
                 await locks.unlock(space)
             }
         } else if let session {
@@ -74,6 +69,10 @@ struct SpaceView: View {
 
     private func actionsMenu(for space: Space) -> some View {
         Menu {
+            if let url = session?.url, let host = url.host(), let home = space.startURL, !WebAddress.isSameSite(url, as: home) {
+                // The page has moved to another site, so say which one.
+                Text(host)
+            }
             ControlGroup {
                 Button("Back", systemImage: "chevron.backward") {
                     session?.webView.goBack()
@@ -113,7 +112,7 @@ struct SpaceView: View {
                         store.update(updated)
                     }
                 ))
-                if let url = session?.webView.url {
+                if let url = session?.url {
                     ShareLink("Share Page", item: url)
                 }
                 Button("Edit Space", systemImage: "slider.horizontal.3") {
@@ -136,9 +135,11 @@ struct SpaceView: View {
 /// The page itself, with a progress bar while it loads and a retry screen when it can't.
 private struct SpaceWebView: View {
     @Bindable var session: SpaceSession
+    @Environment(SessionCache.self) private var sessions
 
     var body: some View {
         WebContainer(webView: session.webView, keepsRunningOffScreen: true) {
+            sessions.markUsed(session.space.id)
             session.didAttach()
         }
         // WKWebView moves its content out of the keyboard's way on its own. Letting SwiftUI do it as well makes the page jump.
@@ -158,7 +159,7 @@ private struct SpaceWebView: View {
                     Text(error)
                 } actions: {
                     Button("Try Again") {
-                        session.reload()
+                        session.retry()
                     }
                     .buttonStyle(.bordered)
                 }
@@ -180,6 +181,23 @@ private struct PopupSheet: View {
         NavigationStack {
             WebContainer(webView: popup.webView)
                 .ignoresSafeArea(.keyboard)
+                .overlay {
+                    if let error = popup.loadError {
+                        ContentUnavailableView {
+                            Label("Can't Load Page", systemImage: "wifi.exclamationmark")
+                        } description: {
+                            Text(error)
+                        } actions: {
+                            Button("Try Again") {
+                                popup.webView.reload()
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                        .background(Color(.systemBackground))
+                    } else if popup.isLoading && popup.host.isEmpty {
+                        ProgressView()
+                    }
+                }
                 .navigationTitle(popup.host)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
@@ -193,12 +211,15 @@ private struct PopupSheet: View {
     }
 }
 
+/// Shown instead of a locked space's page. It asks to unlock when it appears and each time Alts
+/// comes back to the front, but not again right after someone cancels.
 struct LockedView: View {
     let space: Space
-    let showsUnlockButton: Bool
-    var unlock: () async -> Void = {}
+    var unlock: () async -> Void
 
+    @Environment(\.scenePhase) private var scenePhase
     @State private var isUnlocking = false
+    @State private var askedThisVisit = false
 
     var body: some View {
         VStack(spacing: 16) {
@@ -206,19 +227,28 @@ struct LockedView: View {
                 .padding(.bottom, 4)
             Text("\(space.name) is locked")
                 .font(.headline)
-            if showsUnlockButton {
-                Button("Unlock") {
-                    Task { await attemptUnlock() }
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(isUnlocking)
+            Button {
+                Task { await attemptUnlock() }
+            } label: {
+                // System background on the accent keeps the label readable in light and dark mode.
+                Text("Unlock")
+                    .foregroundStyle(Color(.systemBackground))
             }
+            .buttonStyle(.borderedProminent)
+            .disabled(isUnlocking)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(.systemBackground))
-        .task {
-            guard showsUnlockButton else { return }
-            await attemptUnlock()
+        .onChange(of: scenePhase, initial: true) { _, phase in
+            switch phase {
+            case .active where !askedThisVisit:
+                askedThisVisit = true
+                Task { await attemptUnlock() }
+            case .background:
+                askedThisVisit = false
+            default:
+                break
+            }
         }
     }
 
@@ -236,20 +266,21 @@ struct WebContainer: UIViewRepresentable {
     let webView: WKWebView
     /// Space pages go backstage when they leave the screen so they keep running. Popups don't.
     var keepsRunningOffScreen = false
-    var onAttach: @MainActor () -> Void = {}
+    /// Called each time the web view is actually on screen in this container.
+    var onShow: @MainActor () -> Void = {}
 
     func makeUIView(context: Context) -> ContainerView {
         let container = ContainerView()
         container.keepsRunningOffScreen = keepsRunningOffScreen
+        container.onShow = onShow
         container.host(webView)
-        attached()
         return container
     }
 
     func updateUIView(_ container: ContainerView, context: Context) {
-        if container.hosted !== webView {
+        container.onShow = onShow
+        if container.hosted !== webView || webView.superview !== container {
             container.host(webView)
-            attached()
         }
     }
 
@@ -257,42 +288,55 @@ struct WebContainer: UIViewRepresentable {
         container.release()
     }
 
-    private func attached() {
-        let onAttach = onAttach
-        Task { onAttach() }
-    }
-
     final class ContainerView: UIView {
         private(set) weak var hosted: WKWebView?
         var keepsRunningOffScreen = false
+        var onShow: @MainActor () -> Void = {}
 
         func host(_ webView: WKWebView) {
-            hosted?.removeFromSuperview()
+            if let hosted, hosted !== webView, hosted.superview === self {
+                letGo(hosted)
+            }
             webView.removeFromSuperview()
             webView.frame = bounds
             webView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
             addSubview(webView)
             hosted = webView
+            if window != nil {
+                onShow()
+            }
+        }
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            guard window != nil, let hosted else { return }
+            if hosted.superview === self {
+                onShow()
+            } else {
+                // Back on screen after its web view went backstage: take it back.
+                host(hosted)
+            }
         }
 
         override func willMove(toWindow newWindow: UIWindow?) {
             super.willMove(toWindow: newWindow)
-            if newWindow == nil {
-                letGo()
+            if newWindow == nil, let hosted, hosted.superview === self {
+                letGo(hosted)
             }
         }
 
         func release() {
-            letGo()
+            if let hosted, hosted.superview === self {
+                letGo(hosted)
+            }
             hosted = nil
         }
 
-        private func letGo() {
-            guard let hosted, hosted.superview === self else { return }
+        private func letGo(_ webView: WKWebView) {
             if keepsRunningOffScreen, let window {
-                Backstage.keep(hosted, in: window)
+                Backstage.keep(webView, in: window)
             } else {
-                hosted.removeFromSuperview()
+                webView.removeFromSuperview()
             }
         }
     }

@@ -69,7 +69,7 @@ final class AltsUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(row(named: "Personal", in: app).waitForExistence(timeout: 10))
-        XCTAssertEqual(row(named: "Work", in: app).label, "Work, WhatsApp, Locked")
+        XCTAssertTrue(row(named: "Work", in: app).label.hasPrefix("Work, WhatsApp, Requires "))
         attachScreenshot(of: app, named: "6-list")
 
         row(named: "Shop", in: app).press(forDuration: 1)

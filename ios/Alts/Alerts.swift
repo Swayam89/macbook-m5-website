@@ -15,10 +15,16 @@ enum Alerts {
         }
     }
 
-    static func post(for space: Space, unread: Int) {
+    static func post(for space: Space, unread: UnreadCount) {
         let content = UNMutableNotificationContent()
-        content.title = space.name
-        content.body = unread == 1 ? "1 unread" : "\(unread) unread"
+        if space.requiresUnlock {
+            // A locked space's name and activity stay private, including on the Lock Screen.
+            content.title = "Alts"
+            content.body = "A locked space has new activity."
+        } else {
+            content.title = space.name
+            content.body = "\(unread.text) unread"
+        }
         content.sound = .default
         content.threadIdentifier = space.id.uuidString
         content.userInfo = ["space": space.id.uuidString]
@@ -27,12 +33,23 @@ enum Alerts {
         let request = UNNotificationRequest(identifier: space.id.uuidString, content: content, trigger: nil)
         UNUserNotificationCenter.current().add(request)
     }
+
+    /// Clears a space's alert once it has been seen, or when the space is deleted.
+    static func remove(for spaceID: UUID) {
+        UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: [spaceID.uuidString])
+    }
 }
 
 /// Shows alerts while the app is in front and opens the right space when one is tapped.
-final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate, Sendable {
+///
+/// UserNotifications calls these methods off the main thread, and finishing an async version
+/// off the main thread crashes in UIKit, so the conformance is main-actor isolated.
+@MainActor
+final class NotificationRouter: NSObject {
     static let shared = NotificationRouter()
+}
 
+extension NotificationRouter: @preconcurrency UNUserNotificationCenterDelegate {
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
@@ -46,10 +63,9 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate, Send
     ) async {
         guard
             let raw = response.notification.request.content.userInfo["space"] as? String,
-            let id = UUID(uuidString: raw)
+            let id = UUID(uuidString: raw),
+            SpaceStore.savedSpaces().contains(where: { $0.id == id })
         else { return }
-        await MainActor.run {
-            Navigator.shared.show(id)
-        }
+        Navigator.shared.show(id)
     }
 }

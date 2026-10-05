@@ -70,14 +70,39 @@ struct SpaceStoreTests {
         #expect(try String(contentsOf: backup, encoding: .utf8) == "not json")
     }
 
-    @Test func unknownServicesAndTintsStillDecode() throws {
+    @Test func unknownTintsFallBackToGraphite() throws {
         let json = """
-        [{"id":"6F0E9C1A-3C55-4C1B-9D0B-6F7A3B1E2D10","name":"Old","service":"someday-removed",
+        [{"id":"6F0E9C1A-3C55-4C1B-9D0B-6F7A3B1E2D10","name":"Old","service":"telegram",
           "tint":"neon","requiresUnlock":false,"createdAt":0}]
         """
         let spaces = try JSONDecoder().decode([Space].self, from: Data(json.utf8))
-        #expect(spaces.first?.service == .custom)
         #expect(spaces.first?.tint == .graphite)
+    }
+
+    /// A space for a site this version doesn't know (written by a newer Alts) is hidden, but it
+    /// survives on disk when the list is saved, along with every space that can be read.
+    @Test func entriesThisVersionCantReadAreKept() throws {
+        let file = temporaryFile()
+        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let json = """
+        [{"id":"6F0E9C1A-3C55-4C1B-9D0B-6F7A3B1E2D10","name":"Future","service":"someday-added","tint":"moss"},
+         {"id":"0B5E1C2A-1111-4C1B-9D0B-6F7A3B1E2D10","name":"Known","service":"telegram","tint":"moss"}]
+        """
+        try Data(json.utf8).write(to: file)
+
+        let store = SpaceStore(fileURL: file)
+        #expect(store.spaces.map(\.name) == ["Known"])
+
+        store.add(Space(name: "New", service: .x, tint: .pine))
+        let saved = try String(contentsOf: file, encoding: .utf8)
+        #expect(saved.contains("someday-added"))
+        #expect(SpaceStore(fileURL: file).spaces.map(\.name) == ["Known", "New"])
+    }
+
+    @Test func otherWebsitesAreNamedAfterTheirHost() {
+        let store = SpaceStore(fileURL: nil)
+        #expect(store.suggestedName(for: .custom, address: URL(string: "https://www.notion.so/page")) == "notion.so")
+        #expect(store.suggestedName(for: .custom, address: nil) == "Other Website")
     }
 
     @Test func monogramsUseTheFirstTwoWords() {

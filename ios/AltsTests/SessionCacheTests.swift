@@ -15,7 +15,8 @@ struct SessionCacheTests {
 
         cache.session(for: a)
         cache.session(for: b)
-        cache.session(for: a)
+        // Reopening a cached space only marks it as used; it doesn't ask for the session again.
+        cache.markUsed(a.id)
         cache.session(for: c)
 
         #expect(cache.existingSession(for: a.id) != nil)

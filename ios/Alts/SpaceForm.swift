@@ -24,9 +24,13 @@ struct SpaceForm: View {
     @State private var desktopSite = Service.whatsApp.prefersDesktopSite
     @State private var alertsWhileOpen = false
     @State private var alertsDenied = false
+    @State private var dataCleared = false
     @State private var confirmingClear = false
     @State private var confirmingDelete = false
+    @State private var confirmingDiscard = false
     @State private var isSaving = false
+    /// The values the form opened with, to tell whether anything changed.
+    @State private var initial: [String] = []
 
     init(mode: Mode) {
         self.mode = mode
@@ -46,40 +50,29 @@ struct SpaceForm: View {
     }
 
     private var suggestedName: String {
-        original?.name ?? store.suggestedName(for: service)
+        original?.name ?? store.suggestedName(for: service, address: WebAddress.url(from: address))
+    }
+
+    private var addressIsInvalid: Bool {
+        service == .custom && WebAddress.url(from: address) == nil
     }
 
     private var canSave: Bool {
-        !isSaving && (service != .custom || WebAddress.url(from: address) != nil)
+        !isSaving && !addressIsInvalid
+    }
+
+    private var snapshot: [String] {
+        [service.rawValue, name, address, tint.rawValue, "\(requiresUnlock)", "\(desktopSite)", "\(alertsWhileOpen)"]
+    }
+
+    private var hasChanges: Bool {
+        !initial.isEmpty && snapshot != initial
     }
 
     var body: some View {
         NavigationStack {
             Form {
-                if original == nil {
-                    Section {
-                        Picker("Site", selection: $service) {
-                            ForEach(Service.allCases) { service in
-                                Text(service.displayName).tag(service)
-                            }
-                        }
-                        .pickerStyle(.navigationLink)
-                        .accessibilityIdentifier("site-picker")
-
-                        if service == .custom {
-                            TextField("Address", text: $address, prompt: Text("example.com"))
-                                .keyboardType(.URL)
-                                .textContentType(.URL)
-                                .textInputAutocapitalization(.never)
-                                .autocorrectionDisabled()
-                                .accessibilityIdentifier("address-field")
-                        }
-                    } footer: {
-                        if let caveat = service.caveat {
-                            Text(caveat)
-                        }
-                    }
-                }
+                siteSection
 
                 Section("Name") {
                     TextField("Name", text: $name, prompt: Text(suggestedName))
@@ -104,20 +97,36 @@ struct SpaceForm: View {
                         Button("Clear Website Data") {
                             confirmingClear = true
                         }
+                        .disabled(dataCleared)
                         Button("Delete Space", role: .destructive) {
                             confirmingDelete = true
                         }
                     } footer: {
-                        Text("Clearing signs \(original.name) out and keeps the space. Deleting removes both.")
+                        if dataCleared {
+                            Text("Signed out. \(original.name) opens on its home page next time.")
+                        } else {
+                            Text("Clear Website Data signs you out of \(original.siteName) but keeps the space. Delete Space removes both.")
+                        }
                     }
                 }
             }
             .navigationTitle(original == nil ? "New Space" : "Edit Space")
             .navigationBarTitleDisplayMode(.inline)
+            .interactiveDismissDisabled(hasChanges)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
-                        dismiss()
+                        if hasChanges {
+                            confirmingDiscard = true
+                        } else {
+                            dismiss()
+                        }
+                    }
+                    .confirmationDialog("Discard your changes?", isPresented: $confirmingDiscard) {
+                        Button("Discard Changes", role: .destructive) {
+                            dismiss()
+                        }
+                        Button("Keep Editing", role: .cancel) {}
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
@@ -125,6 +134,11 @@ struct SpaceForm: View {
                         Task { await save() }
                     }
                     .disabled(!canSave)
+                }
+            }
+            .onAppear {
+                if initial.isEmpty {
+                    initial = snapshot
                 }
             }
             .onChange(of: service) { _, newService in
@@ -142,25 +156,57 @@ struct SpaceForm: View {
             }
             .confirmationDialog("Clear website data?", isPresented: $confirmingClear, titleVisibility: .visible) {
                 Button("Clear Data", role: .destructive) {
-                    guard let original else { return }
-                    Task {
-                        await sessions.clearData(for: original)
-                        dismiss()
-                    }
+                    Task { await clearData() }
                 }
             } message: {
                 Text("You'll be signed out of \(original?.siteName ?? "the site") in this space.")
             }
-            .confirmationDialog("Delete this space?", isPresented: $confirmingDelete, titleVisibility: .visible) {
+            .confirmationDialog(
+                "Delete \u{201C}\(original?.name ?? "")\u{201D}?",
+                isPresented: $confirmingDelete,
+                titleVisibility: .visible
+            ) {
                 Button("Delete Space", role: .destructive) {
-                    guard let original else { return }
-                    navigator.close(original.id)
-                    sessions.erase(original.id)
-                    store.remove(id: original.id)
-                    dismiss()
+                    Task { await delete() }
                 }
             } message: {
                 Text("This signs you out and erases everything the site saved in this space.")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var siteSection: some View {
+        if let original {
+            Section {
+                LabeledContent("Site", value: original.startURL?.host() ?? original.siteName)
+            } footer: {
+                Text("The site can't be changed after a space is created, because its sign-in belongs to that site.")
+            }
+        } else {
+            Section {
+                Picker("Site", selection: $service) {
+                    ForEach(Service.allCases) { service in
+                        Text(service.displayName).tag(service)
+                    }
+                }
+                .pickerStyle(.navigationLink)
+                .accessibilityIdentifier("site-picker")
+
+                if service == .custom {
+                    TextField("Address", text: $address, prompt: Text("example.com"))
+                        .keyboardType(.URL)
+                        .textContentType(.URL)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .accessibilityIdentifier("address-field")
+                }
+            } footer: {
+                if service == .custom && !address.isEmpty && addressIsInvalid {
+                    Text("Enter a web address, like example.com.")
+                } else if let caveat = service.caveat {
+                    Text(caveat)
+                }
             }
         }
     }
@@ -180,9 +226,11 @@ struct SpaceForm: View {
         } else if !locks.isAvailable {
             Text("To lock a space, set a passcode in Settings first.")
         } else {
-            Text("Alerts While Open tells you when this space has new unread items while Alts is open. iOS doesn't let it check in the background.")
+            Text(Self.alertsExplanation)
         }
     }
+
+    static let alertsExplanation = "Alerts While Open tells you when this space has new unread items while you're using Alts, including in another space. Locked spaces only check after you unlock them. iOS doesn't let Alts check once you leave it."
 
     private func save() async {
         isSaving = true
@@ -217,7 +265,25 @@ struct SpaceForm: View {
         space.requiresUnlock = requiresUnlock
         space.desktopSite = desktopSite
         space.alertsWhileOpen = alertsWhileOpen
+        if !original.requiresUnlock && requiresUnlock {
+            // Locking a space from inside it shouldn't throw you out of it. It locks when you leave Alts.
+            locks.markUnlocked(space)
+        }
         store.update(space)
+        dismiss()
+    }
+
+    private func clearData() async {
+        guard let original, await locks.confirm(original, reason: "Clear website data for \(original.name)") else { return }
+        await sessions.clearData(for: original)
+        dataCleared = true
+    }
+
+    private func delete() async {
+        guard let original, await locks.confirm(original, reason: "Delete \(original.name)") else { return }
+        navigator.close(original.id)
+        sessions.erase(original.id)
+        store.remove(id: original.id)
         dismiss()
     }
 }
@@ -226,19 +292,20 @@ struct TintPicker: View {
     @Binding var selection: Tint
 
     var body: some View {
-        // One row of eight. An adaptive grid left a single swatch on a second line.
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 0), count: Tint.allCases.count), spacing: 0) {
+        // Two rows of four keeps every swatch at least 44 points wide on the smallest iPhone.
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 0), count: 4), spacing: 4) {
             ForEach(Tint.allCases, id: \.self) { tint in
                 Button {
                     selection = tint
                 } label: {
                     Circle()
                         .fill(tint.color)
-                        .frame(width: 30, height: 30)
+                        .strokeBorder(Color.primary.opacity(0.15), lineWidth: 1)
+                        .frame(width: 32, height: 32)
                         .overlay {
                             if tint == selection {
                                 Image(systemName: "checkmark")
-                                    .font(.footnote.bold())
+                                    .font(.system(size: 13, weight: .bold))
                                     .foregroundStyle(.white)
                             }
                         }

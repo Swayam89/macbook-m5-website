@@ -12,10 +12,14 @@ final class LockState {
         LAContext().canEvaluatePolicy(.deviceOwnerAuthentication, error: nil)
     }
 
-    /// "Face ID", "Touch ID", "Optic ID", or "Passcode" on devices without biometrics.
+    /// "Face ID", "Touch ID" or "Optic ID" when it is set up and allowed for Alts, otherwise "Passcode".
     var methodName: String {
         let context = LAContext()
-        _ = context.canEvaluatePolicy(.deviceOwnerAuthentication, error: nil)
+        var error: NSError?
+        let canUseBiometrics = context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error)
+        // A lockout still means biometrics are set up, so keep the name instead of flickering to Passcode.
+        let lockedOut = (error as? LAError)?.code == .biometryLockout
+        guard canUseBiometrics || lockedOut else { return "Passcode" }
         switch context.biometryType {
         case .faceID: return "Face ID"
         case .touchID: return "Touch ID"
@@ -32,6 +36,18 @@ final class LockState {
         if await authenticate(reason: "Unlock \(space.name)") {
             unlocked.insert(space.id)
         }
+    }
+
+    /// For a space that was just locked from inside it: it stays open until the app leaves the screen.
+    func markUnlocked(_ space: Space) {
+        unlocked.insert(space.id)
+    }
+
+    /// Asks for Face ID, Touch ID or the passcode before something that changes or removes a
+    /// locked space. Spaces that aren't locked, or are open right now, pass straight through.
+    func confirm(_ space: Space, reason: String) async -> Bool {
+        guard !isUnlocked(space) else { return true }
+        return await authenticate(reason: reason)
     }
 
     /// Asks for Face ID, Touch ID or the passcode. With no passcode set there is nothing to check against, so it passes.

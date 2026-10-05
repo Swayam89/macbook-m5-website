@@ -29,16 +29,16 @@ struct OffScreenTests {
             baseURL: URL(string: "https://alts.test/")
         )
         try await Task.sleep(for: .seconds(3))
-        #expect((session.unreadCount ?? 0) >= 1, "the page should be ticking while on screen")
+        #expect((session.unread?.value ?? 0) >= 1, "the page should be ticking while on screen")
 
         // Switching to another space removes this space's container from the window.
         container.removeFromSuperview()
         #expect(!session.isOnScreen)
         #expect(session.webView.window === window, "the web view should wait backstage, still in the window")
 
-        let before = session.unreadCount ?? 0
+        let before = session.unread?.value ?? 0
         try await Task.sleep(for: .seconds(20))
-        let after = session.unreadCount ?? 0
+        let after = session.unread?.value ?? 0
         #expect(after - before >= 10, "count went from \(before) to \(after) in 20 seconds off screen")
     }
 
@@ -80,9 +80,9 @@ struct OffScreenTests {
         case .detached: session.webView.removeFromSuperview()
         }
 
-        let before = session.unreadCount ?? 0
+        let before = session.unread?.value ?? 0
         try await Task.sleep(for: .seconds(8))
-        return (session.unreadCount ?? 0) - before
+        return (session.unread?.value ?? 0) - before
     }
 
     /// Popups are not spaces: closing one must take its web view out of the window.

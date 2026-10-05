@@ -35,8 +35,8 @@ struct IsolationTests {
         let window = try TestWindow.make()
         defer { window.isHidden = true }
 
-        let writer = try await page(in: firstID, on: window)
-        let written = try await writer.callAsyncJavaScript(
+        var writer: WKWebView? = try await page(in: firstID, on: window)
+        let written = try await writer?.callAsyncJavaScript(
             "localStorage.setItem('account', 'first'); return localStorage.getItem('account');",
             contentWorld: .page
         )
@@ -49,13 +49,54 @@ struct IsolationTests {
         )
         #expect(seenElsewhere == nil || seenElsewhere is NSNull)
 
-        // A fresh web view on the same space, like a space reopened after its session was discarded.
+        // Close the writing page completely, the way a space's session is released, then reopen the space.
+        writer?.removeFromSuperview()
+        writer = nil
+        try await Task.sleep(for: .seconds(1))
+
         let reopened = try await page(in: firstID, on: window)
         let seenAgain = try await reopened.callAsyncJavaScript(
             "return localStorage.getItem('account');",
             contentWorld: .page
         )
         #expect(seenAgain as? String == "first")
+    }
+
+    /// WhatsApp Web and Telegram keep their sign-in in IndexedDB, not cookies.
+    @Test func indexedDBStaysInItsSpace() async throws {
+        let window = try TestWindow.make()
+        defer { window.isHidden = true }
+        let script = """
+            const db = await new Promise((resolve, reject) => {
+                const request = indexedDB.open('alts-test', 1);
+                request.onupgradeneeded = () => request.result.createObjectStore('keys');
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject(request.error);
+            });
+            if (write) {
+                await new Promise((resolve, reject) => {
+                    const tx = db.transaction('keys', 'readwrite');
+                    tx.objectStore('keys').put('first-account', 'session');
+                    tx.oncomplete = resolve;
+                    tx.onerror = () => reject(tx.error);
+                });
+            }
+            const value = await new Promise((resolve, reject) => {
+                const request = db.transaction('keys').objectStore('keys').get('session');
+                request.onsuccess = () => resolve(request.result ?? null);
+                request.onerror = () => reject(request.error);
+            });
+            db.close();
+            return value;
+            """
+
+        let first = try await page(in: UUID(), on: window)
+        let written = try await first.callAsyncJavaScript(script, arguments: ["write": true], contentWorld: .page)
+        #expect(written as? String == "first-account")
+
+        let second = try await page(in: UUID(), on: window)
+        let seenElsewhere = try await second.callAsyncJavaScript(script, arguments: ["write": false], contentWorld: .page)
+        #expect(seenElsewhere == nil || seenElsewhere is NSNull)
     }
 
     @Test func eachSessionUsesItsSpacesDataStore() throws {

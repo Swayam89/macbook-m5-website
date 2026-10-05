@@ -69,6 +69,7 @@ jobs:
             -project Alts.xcodeproj -scheme Alts \
             -destination "platform=iOS Simulator,id=$SIM_ID" \
             -derivedDataPath build/DerivedData \
+            -parallel-testing-enabled NO \
             -skip-testing:AltsTests/ServiceProbeTests \
             -resultBundlePath build/Tests.xcresult \
             2>&1 | tee build/tests.log | { if command -v xcbeautify >/dev/null; then xcbeautify --renderer github-actions; else cat; fi; }
@@ -87,6 +88,7 @@ jobs:
             -project Alts.xcodeproj -scheme Alts \
             -destination "platform=iOS Simulator,id=$SIM_ID" \
             -derivedDataPath build/DerivedData \
+            -parallel-testing-enabled NO \
             -only-testing:AltsTests/ServiceProbeTests \
             -resultBundlePath build/Probe.xcresult \
             2>&1 | tee build/probe.log | { if command -v xcbeautify >/dev/null; then xcbeautify --renderer github-actions; else cat; fi; }
@@ -107,6 +109,7 @@ jobs:
       # artifacts. Remove once reviewed.
       - name: Print review material
         if: always()
+        continue-on-error: true
         run: |
           grep -hE "ALTS-MEASURE|recorded an issue|Expectation failed|error: -\[|failed \(" build/tests.log 2>/dev/null | head -60 || true
           /usr/bin/python3 - <<'PY'

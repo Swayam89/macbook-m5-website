@@ -87,11 +87,3 @@ enum Service: String, CaseIterable, Identifiable, Codable, Sendable {
         }
     }
 }
-
-extension Service {
-    /// A service from a newer version of Alts decodes as `.custom` instead of failing the whole list.
-    init(from decoder: Decoder) throws {
-        let raw = try decoder.singleValueContainer().decode(String.self)
-        self = Service(rawValue: raw) ?? .custom
-    }
-}

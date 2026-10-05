@@ -25,14 +25,15 @@ Every "Parallel Space" or "Dual Messenger" app on the App Store is a web browser
 
 ## What Alts does instead
 
-Alts is honest about being that kind of app, and tries to be the best version of it.
+Alts is that kind of app, and says so.
 
 - Each space gets its own persistent `WKWebsiteDataStore(forIdentifier:)` (iOS 17 and later). Cookies, local storage, IndexedDB, caches and service workers are separate per space. `IsolationTests` checks this against real WebKit, not a mock.
-- Sites that turn phones away (WhatsApp Web, Discord, Slack, Messenger) get the desktop site with a Safari-identical user agent. Any space can switch with Desktop Site in its menu.
+- Sites that turn phones away (WhatsApp Web, Discord, Slack, Messenger) get the desktop site, with the same user agent Safari sends when you ask it for one. Any space can switch with Desktop Site in its menu. WhatsApp still suggests its app first; tap Continue to WhatsApp Web.
 - The last four spaces you used stay alive, so switching between them doesn't reload the page or drop the connection. Older ones are released to save memory and reload from their saved data when you come back.
-- Spaces can require Face ID, Touch ID or the passcode. The page is covered before iOS takes the app switcher snapshot, and everything locks again when Alts goes to the background.
+- Spaces can require Face ID, Touch ID or the passcode. While a locked space is showing, a cover goes over the whole screen, sheets included, before iOS takes the app switcher snapshot. When Alts goes to the background, everything locks again and anything a locked space had open (a share sheet, a Safari view, a dialog) is closed. Editing, clearing or deleting a locked space asks first.
 - Unread counts are read from page titles, like "(3) WhatsApp", and shown in the list. With Alerts While Open turned on, Alts posts a notification when a space you're not looking at gets new unread items.
-- Sign-in popups open in a sheet that shares the space's data. Other links open in Safari. Downloads go to the share sheet, so you can save to Files or Photos.
+- Sign-in popups and links within the same site open in a sheet that shares the space's sign-in, so the web app behind keeps running. Links to other sites open in an in-app Safari view. That view uses one browser profile shared by every space, not the space's own data. Links into other apps ask first.
+- Downloads ask first, like Safari, then go to the share sheet, so you can save to Files or Photos. A space that isn't on screen can't start one or show a dialog over another space.
 - Each space can be opened from Shortcuts with the Open Space action. Adding that shortcut to the Home Screen gives a space its own icon, the nearest iOS equivalent to a cloned app's icon.
 - Spaces show their initials on a colored tile, never a service's logo.
 
@@ -48,6 +49,8 @@ Alts is honest about being that kind of app, and tries to be the best version of
 | Instagram posting is limited | Instagram's website can't post Reels or go live. |
 
 ## Build and run
+
+Alts is an iPhone app. It also runs on iPad and on Apple silicon Macs in iPhone compatibility mode.
 
 You need a Mac with Xcode 26 or later. Xcode 27 is current; the App Store has required the iOS 26 SDK since April 2026. The app runs on iOS 17 and later.
 
@@ -79,6 +82,8 @@ These are the review risks, in order of how likely they are to come up:
 
 - **4.2 Minimum functionality.** Apple rejects apps that are "a repackaged website." Alts adds isolation, locking, alerts and Shortcuts on top, which is the argument to make in the review notes.
 - **5.2.2 Third-party sites.** Apple can ask for proof you're allowed to show a service's content. A general-purpose browser of sites the user picks is the usual defense. Don't add features that scrape or automate a service.
+- **The built-in sites and the desktop user agent are the main 5.2.2 exposure.** Presenting Alts as a browser for sites the person chooses, with presets as shortcuts, is the stronger position.
+- **Age rating.** Other Website accepts any address, so answer Yes to Unrestricted Web Access in the age rating questionnaire. That makes the app 16+.
 - **4.1(c) and 5.2.1 Names and trademarks.** Don't put "WhatsApp" or any other service's name or logo in the app's name, icon, subtitle or screenshots. Inside the app, plain text names for the sites are normal browser behavior.
 
 ## Layout

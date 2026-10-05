@@ -3,6 +3,22 @@ import SafariServices
 import UIKit
 import WebKit
 
+/// An unread count read from a page title. "(99+)" is kept as 99 and marked as capped.
+struct UnreadCount: Equatable, Sendable {
+    var value: Int
+    var isCapped: Bool
+
+    var text: String {
+        isCapped ? "\(value)+" : "\(value)"
+    }
+
+    /// Most messaging sites put the count at the start of the tab title: "(3) WhatsApp", "(99+) Discord".
+    static func parse(title: String) -> UnreadCount? {
+        guard let match = title.firstMatch(of: #/^\s*\((\d{1,5})(\+?)\)/#), let value = Int(match.1) else { return nil }
+        return UnreadCount(value: value, isCapped: !match.2.isEmpty)
+    }
+}
+
 /// The live web view for one space, plus the state the UI shows about it.
 ///
 /// Sessions outlive the screen that shows them (see `SessionCache`), so switching between
@@ -14,7 +30,8 @@ final class SpaceSession: NSObject {
     let webView: WKWebView
 
     private(set) var title = ""
-    private(set) var unreadCount: Int?
+    private(set) var url: URL?
+    private(set) var unread: UnreadCount?
     private(set) var isLoading = false
     private(set) var progress = 0.0
     private(set) var canGoBack = false
@@ -24,7 +41,16 @@ final class SpaceSession: NSObject {
 
     @ObservationIgnored private var observations: [NSKeyValueObservation] = []
     @ObservationIgnored private var downloads: [(download: WKDownload, destination: URL)] = []
+    /// Finished downloads and failures that arrived while the space wasn't showing.
+    @ObservationIgnored private var heldResults: [Result<URL, Error>] = []
     @ObservationIgnored private var needsReload = false
+    @ObservationIgnored private var recentCrashes: [Date] = []
+    /// The count last seen or announced, so a title that briefly drops its count doesn't alert twice.
+    @ObservationIgnored private var alertedCount = 0
+    @ObservationIgnored private var countlessSince: Date?
+    /// Resumes an open JavaScript dialog with its cancel value when the dialog is taken away.
+    @ObservationIgnored fileprivate var cancelOpenDialog: (@MainActor () -> Void)?
+    @ObservationIgnored fileprivate weak var presentedController: UIViewController?
 
     init(space: Space) {
         self.space = space
@@ -33,7 +59,7 @@ final class SpaceSession: NSObject {
         configuration.websiteDataStore = WKWebsiteDataStore(forIdentifier: space.id)
         configuration.allowsInlineMediaPlayback = true
         configuration.applicationNameForUserAgent = Self.applicationName(desktop: space.desktopSite)
-        configuration.defaultWebpagePreferences.preferredContentMode = space.desktopSite ? .desktop : .recommended
+        configuration.defaultWebpagePreferences.preferredContentMode = space.desktopSite ? .desktop : .mobile
         webView = WKWebView(frame: .zero, configuration: configuration)
 
         super.init()
@@ -54,6 +80,7 @@ final class SpaceSession: NSObject {
         observe(\.title) { session, title in
             session.titleChanged(to: title ?? "")
         }
+        observe(\.url) { $0.url = $1 }
         observe(\.isLoading) { $0.isLoading = $1 }
         observe(\.estimatedProgress) { $0.progress = $1 }
         observe(\.canGoBack) { $0.canGoBack = $1 }
@@ -65,7 +92,11 @@ final class SpaceSession: NSObject {
     /// True while the page is showing. A space switched away from keeps its web view backstage
     /// in the window, so having a window isn't enough.
     var isOnScreen: Bool {
-        webView.window != nil && !Backstage.contains(webView)
+        Self.isShowing(webView)
+    }
+
+    var hasActiveDownloads: Bool {
+        !downloads.isEmpty
     }
 
     /// Applies edits that don't need a new web view. Changing `desktopSite` does, so `SessionCache` replaces the session for that.
@@ -85,46 +116,76 @@ final class SpaceSession: NSObject {
         }
     }
 
-    /// Back to the service's home page, for example after clearing the space's data.
+    /// Try Again after an error, including the one shown when the page keeps crashing.
+    func retry() {
+        recentCrashes.removeAll()
+        reload()
+    }
+
+    /// Back to the service's home page.
     func loadStartPage() {
+        guard let url = space.startURL else {
+            loadError = "This space was made by a newer version of Alts. Update Alts to open it."
+            return
+        }
         loadError = nil
-        guard let url = space.startURL else { return }
         webView.load(URLRequest(url: url))
     }
 
-    /// Called when the web view is put back on screen.
+    /// Called each time the page comes on screen.
     func didAttach() {
+        alertedCount = unread?.value ?? 0
+        countlessSince = nil
+        Alerts.remove(for: space.id)
         if needsReload {
             needsReload = false
             reload()
         }
+        let held = heldResults
+        heldResults.removeAll()
+        for result in held {
+            deliver(result)
+        }
+    }
+
+    /// Takes down anything this space put on screen, for when it locks.
+    func dismissPresentations() {
+        cancelOpenDialog?()
+        cancelOpenDialog = nil
+        presentedController?.dismiss(animated: false)
+        presentedController = nil
+        popup = nil
     }
 
     func tearDown() {
+        dismissPresentations()
         observations.forEach { $0.invalidate() }
         observations.removeAll()
         downloads.forEach { $0.download.cancel { _ in } }
         downloads.removeAll()
-        popup = nil
         webView.stopLoading()
         webView.navigationDelegate = nil
         webView.uiDelegate = nil
         webView.removeFromSuperview()
     }
 
-    /// Most messaging sites put the unread count at the start of the tab title: "(3) WhatsApp".
-    nonisolated static func unreadCount(fromTitle title: String) -> Int? {
-        guard let match = title.firstMatch(of: #/^\s*\((\d{1,5})\+?\)/#) else { return nil }
-        return Int(match.1)
-    }
-
     private func titleChanged(to newTitle: String) {
         title = newTitle
-        let newCount = Self.unreadCount(fromTitle: newTitle)
-        if let newCount, newCount > (unreadCount ?? 0), space.alertsWhileOpen, !isOnScreen {
-            Alerts.post(for: space, unread: newCount)
+        let newUnread = UnreadCount.parse(title: newTitle)
+        if let newUnread {
+            // A title without a count for more than a few seconds means everything was read, not a flash.
+            if let countlessSince, countlessSince.timeIntervalSinceNow < -10 {
+                alertedCount = 0
+            }
+            countlessSince = nil
+            if newUnread.value > alertedCount, space.alertsWhileOpen, !isOnScreen {
+                Alerts.post(for: space, unread: newUnread)
+            }
+            alertedCount = newUnread.value
+        } else if countlessSince == nil {
+            countlessSince = .now
         }
-        unreadCount = newCount
+        unread = newUnread
     }
 
     private func observe<Value: Sendable>(
@@ -153,23 +214,178 @@ final class SpaceSession: NSObject {
         return desktop ? "Version/\(version) Safari/605.1.15" : "Version/\(version) Mobile/15E148 Safari/604.1"
     }
 
-    private func open(externally url: URL) {
+    /// On screen, as opposed to waiting backstage or out of the window.
+    fileprivate static func isShowing(_ webView: WKWebView) -> Bool {
+        webView.window != nil && !Backstage.contains(webView)
+    }
+
+    /// Presents only for a web view that is showing, so a space waiting backstage or locked
+    /// never puts anything in front of whatever is on screen.
+    @discardableResult
+    private func present(_ controller: UIViewController, over webView: WKWebView) -> Bool {
+        guard Self.isShowing(webView), let presenter = webView.topViewController, presenter.presentedViewController == nil else {
+            return false
+        }
+        presenter.present(controller, animated: true)
+        presentedController = controller
+        return true
+    }
+
+    fileprivate func open(externally url: URL, from webView: WKWebView) {
+        guard Self.isShowing(webView) else { return }
         let scheme = url.scheme?.lowercased()
         if scheme == "http" || scheme == "https" {
             let safari = SFSafariViewController(url: url)
             safari.preferredControlTintColor = UIColor(named: "AccentColor")
-            webView.topViewController?.present(safari, animated: true)
-        } else {
+            present(safari, over: webView)
+            return
+        }
+        // Like Safari, ask before a page sends someone to another app. Phone links get the system's own prompt.
+        if scheme == "tel" {
             UIApplication.shared.open(url)
+            return
+        }
+        Task {
+            let answer = await dialog(
+                over: webView,
+                title: "Open in Another App?",
+                message: url.host() ?? url.scheme ?? "",
+                actions: [("Cancel", .cancel, false), ("Open", .default, true)]
+            )
+            if answer.confirmed {
+                _ = await UIApplication.shared.open(url)
+            }
         }
     }
 
-    private func isIgnorable(_ error: Error) -> Bool {
+    fileprivate func deliver(_ result: Result<URL, Error>) {
+        switch result {
+        case .success(let file):
+            // The share sheet covers saving to Files or Photos, and sending the file on.
+            let share = UIActivityViewController(activityItems: [file], applicationActivities: nil)
+            share.popoverPresentationController?.sourceView = webView
+            share.popoverPresentationController?.sourceRect = CGRect(x: webView.bounds.midX, y: webView.bounds.midY, width: 1, height: 1)
+            share.completionWithItemsHandler = { _, _, _, _ in
+                try? FileManager.default.removeItem(at: file.deletingLastPathComponent())
+            }
+            if !present(share, over: webView) {
+                heldResults.append(result)
+            }
+        case .failure(let error):
+            let alert = UIAlertController(title: "Download Failed", message: error.localizedDescription, preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: "OK", style: .cancel))
+            if !present(alert, over: webView) {
+                heldResults.append(result)
+            }
+        }
+    }
+
+    fileprivate func record(_ error: Error, for webView: WKWebView) {
         let error = error as NSError
-        if error.domain == NSURLErrorDomain && error.code == NSURLErrorCancelled { return true }
-        // "Frame load interrupted": WebKit reports this when a navigation turns into a download.
-        if error.domain == "WebKitErrorDomain" && error.code == 102 { return true }
-        return false
+        if error.domain == NSURLErrorDomain && error.code == NSURLErrorCancelled { return }
+        // 102 "Frame load interrupted": the navigation turned into a download.
+        // 204 "Plug-in handled load": a video or audio file is playing in its own document.
+        if error.domain == "WebKitErrorDomain" && (error.code == 102 || error.code == 204) { return }
+
+        if webView === self.webView {
+            loadError = error.localizedDescription
+        } else if webView === popup?.webView {
+            popup?.loadError = error.localizedDescription
+        }
+    }
+
+    fileprivate func clearError(for webView: WKWebView) {
+        if webView === self.webView {
+            loadError = nil
+        } else if webView === popup?.webView {
+            popup?.loadError = nil
+        }
+    }
+
+    fileprivate func addDownload(_ download: WKDownload, to destination: URL) {
+        downloads.append((download, destination))
+    }
+
+    fileprivate func finishDownload(_ download: WKDownload) -> URL? {
+        guard let index = downloads.firstIndex(where: { $0.download === download }) else { return nil }
+        return downloads.remove(at: index).destination
+    }
+
+    fileprivate func dropDownload(_ download: WKDownload) {
+        downloads.removeAll { $0.download === download }
+    }
+
+    fileprivate func noteCrash() -> Bool {
+        recentCrashes = recentCrashes.filter { $0.timeIntervalSinceNow > -60 } + [.now]
+        if recentCrashes.count >= 3 {
+            loadError = "This page keeps closing. It may need more memory than iOS allows it."
+            return false
+        }
+        if !isOnScreen {
+            needsReload = true
+            return false
+        }
+        return true
+    }
+}
+
+// MARK: - JavaScript dialogs
+
+private struct DialogAnswer: Sendable {
+    var confirmed: Bool
+    var text: String?
+}
+
+/// Resumes a continuation once, whichever comes first: a button, the dialog being taken away,
+/// or UIKit refusing to show it.
+@MainActor
+private final class ResumeOnce {
+    private var continuation: CheckedContinuation<DialogAnswer, Never>?
+
+    init(_ continuation: CheckedContinuation<DialogAnswer, Never>) {
+        self.continuation = continuation
+    }
+
+    func resume(_ answer: DialogAnswer) {
+        continuation?.resume(returning: answer)
+        continuation = nil
+    }
+}
+
+extension SpaceSession {
+    /// Shows an alert over `webView` and waits for an answer. A web view that isn't showing gets the
+    /// cancel answer at once, so a page in the background never blocks on a dialog nobody can see.
+    fileprivate func dialog(
+        over webView: WKWebView,
+        title: String,
+        message: String,
+        actions: [(title: String, style: UIAlertAction.Style, confirms: Bool)],
+        textField defaultText: String? = nil
+    ) async -> DialogAnswer {
+        let cancelled = DialogAnswer(confirmed: false, text: nil)
+        guard Self.isShowing(webView), let presenter = webView.topViewController, presenter.presentedViewController == nil else {
+            return cancelled
+        }
+        let answer = await withCheckedContinuation { continuation in
+            let once = ResumeOnce(continuation)
+            let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
+            if let defaultText {
+                alert.addTextField { $0.text = defaultText }
+            }
+            for action in actions {
+                alert.addAction(UIAlertAction(title: action.title, style: action.style) { [weak alert] _ in
+                    once.resume(DialogAnswer(confirmed: action.confirms, text: alert?.textFields?.first?.text))
+                })
+            }
+            cancelOpenDialog = { once.resume(cancelled) }
+            presenter.present(alert, animated: true)
+            presentedController = alert
+            if alert.presentingViewController == nil {
+                once.resume(cancelled)
+            }
+        }
+        cancelOpenDialog = nil
+        return answer
     }
 }
 
@@ -187,10 +403,10 @@ extension SpaceSession: WKNavigationDelegate {
         case "http", "https", "about", "blob", "data":
             return .allow
         default:
-            // mailto:, tel: and links into other apps. Only follow them when someone tapped the link,
-            // so a site can't throw people into the App Store on page load.
+            // mailto:, tel: and links into other apps. They only open from a link in the page,
+            // and only after the person agrees (see open(externally:from:)).
             if navigationAction.navigationType == .linkActivated {
-                open(externally: url)
+                open(externally: url, from: webView)
             }
             return .cancel
         }
@@ -217,28 +433,22 @@ extension SpaceSession: WKNavigationDelegate {
     }
 
     func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
-        if webView === self.webView {
-            loadError = nil
-        }
+        clearError(for: webView)
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
-        guard webView === self.webView, !isIgnorable(error) else { return }
-        loadError = error.localizedDescription
+        record(error, for: webView)
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-        guard webView === self.webView, !isIgnorable(error) else { return }
-        loadError = error.localizedDescription
+        record(error, for: webView)
     }
 
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
         guard webView === self.webView else { return }
-        // iOS kills background web content to free memory. Reload now if someone is looking, otherwise on return.
-        if isOnScreen {
-            reload()
-        } else {
-            needsReload = true
+        // iOS ends web content that uses too much memory. Reload, but stop if it keeps happening.
+        if noteCrash() {
+            webView.reload()
         }
     }
 }
@@ -252,20 +462,19 @@ extension SpaceSession: WKUIDelegate {
         for navigationAction: WKNavigationAction,
         windowFeatures: WKWindowFeatures
     ) -> WKWebView? {
-        let url = navigationAction.request.url
-
-        // A tapped target="_blank" link: stay in the space if it's the same site, otherwise use Safari.
-        if navigationAction.navigationType == .linkActivated, let url {
-            if let home = space.startURL, WebAddress.isSameSite(url, as: home) {
-                webView.load(navigationAction.request)
-            } else {
-                open(externally: url)
-            }
+        // A tapped link to another site opens in a Safari view.
+        if navigationAction.navigationType == .linkActivated,
+           let url = navigationAction.request.url,
+           let home = space.startURL,
+           !WebAddress.isSameSite(url, as: home) {
+            open(externally: url, from: webView)
             return nil
         }
 
-        // A window opened by script, usually a sign-in popup. It needs a real web view built from
-        // `configuration` so it shares this space's data store and keeps `window.opener`.
+        // Same-site links and windows opened by script (sign-in popups) get a real web view built from
+        // `configuration`, shown in a sheet. It shares this space's data store and keeps `window.opener`,
+        // and the web app behind it keeps running instead of being navigated away.
+        guard Self.isShowing(webView) else { return nil }
         let child = WKWebView(frame: .zero, configuration: configuration)
         child.navigationDelegate = self
         child.uiDelegate = self
@@ -280,11 +489,16 @@ extension SpaceSession: WKUIDelegate {
     }
 
     func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo) async {
-        _ = await presentDialog(over: webView, message: message, host: frame.securityOrigin.host, actions: [("OK", .cancel, true)])
+        _ = await dialog(over: webView, title: frame.securityOrigin.host, message: message, actions: [("OK", .cancel, true)])
     }
 
     func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo) async -> Bool {
-        await presentDialog(over: webView, message: message, host: frame.securityOrigin.host, actions: [("Cancel", .cancel, false), ("OK", .default, true)])
+        await dialog(
+            over: webView,
+            title: frame.securityOrigin.host,
+            message: message,
+            actions: [("Cancel", .cancel, false), ("OK", .default, true)]
+        ).confirmed
     }
 
     func webView(
@@ -293,34 +507,14 @@ extension SpaceSession: WKUIDelegate {
         defaultText: String?,
         initiatedByFrame frame: WKFrameInfo
     ) async -> String? {
-        guard let presenter = webView.topViewController else { return nil }
-        return await withCheckedContinuation { continuation in
-            let alert = UIAlertController(title: frame.securityOrigin.host, message: prompt, preferredStyle: .alert)
-            alert.addTextField { $0.text = defaultText }
-            alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in continuation.resume(returning: nil) })
-            alert.addAction(UIAlertAction(title: "OK", style: .default) { [weak alert] _ in
-                continuation.resume(returning: alert?.textFields?.first?.text ?? "")
-            })
-            presenter.present(alert, animated: true)
-        }
-    }
-
-    private func presentDialog(
-        over webView: WKWebView,
-        message: String,
-        host: String,
-        actions: [(title: String, style: UIAlertAction.Style, result: Bool)]
-    ) async -> Bool {
-        guard let presenter = webView.topViewController else { return false }
-        return await withCheckedContinuation { continuation in
-            let alert = UIAlertController(title: host, message: message, preferredStyle: .alert)
-            for action in actions {
-                alert.addAction(UIAlertAction(title: action.title, style: action.style) { _ in
-                    continuation.resume(returning: action.result)
-                })
-            }
-            presenter.present(alert, animated: true)
-        }
+        let answer = await dialog(
+            over: webView,
+            title: frame.securityOrigin.host,
+            message: prompt,
+            actions: [("Cancel", .cancel, false), ("OK", .default, true)],
+            textField: defaultText ?? ""
+        )
+        return answer.confirmed ? (answer.text ?? "") : nil
     }
 }
 
@@ -328,64 +522,86 @@ extension SpaceSession: WKUIDelegate {
 
 extension SpaceSession: WKDownloadDelegate {
     func download(_ download: WKDownload, decideDestinationUsing response: URLResponse, suggestedFilename: String) async -> URL? {
-        let folder = FileManager.default.temporaryDirectory
-            .appending(path: "Downloads", directoryHint: .isDirectory)
-            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        let name = suggestedFilename.isEmpty ? "Download" : suggestedFilename
+        // Like Safari, nothing is saved unless the person agrees, and a space that isn't showing can't ask.
+        let answer = await dialog(
+            over: download.webView ?? webView,
+            title: "Download \u{201C}\(name)\u{201D}?",
+            message: response.url?.host() ?? "",
+            actions: [("Cancel", .cancel, false), ("Download", .default, true)]
+        )
+        guard answer.confirmed else { return nil }
+
+        let folder = Downloads.folder.appending(path: UUID().uuidString, directoryHint: .isDirectory)
         do {
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         } catch {
             return nil
         }
-        let destination = folder.appending(path: suggestedFilename.isEmpty ? "Download" : suggestedFilename)
-        downloads.append((download, destination))
+        let destination = folder.appending(path: name)
+        addDownload(download, to: destination)
         return destination
     }
 
     func downloadDidFinish(_ download: WKDownload) {
-        guard let index = downloads.firstIndex(where: { $0.download === download }) else { return }
-        let destination = downloads.remove(at: index).destination
-
-        // The share sheet covers saving to Files or Photos, and sending the file on.
-        let share = UIActivityViewController(activityItems: [destination], applicationActivities: nil)
-        share.popoverPresentationController?.sourceView = webView
-        share.popoverPresentationController?.sourceRect = CGRect(x: webView.bounds.midX, y: webView.bounds.midY, width: 1, height: 1)
-        webView.topViewController?.present(share, animated: true)
+        if let destination = finishDownload(download) {
+            deliver(.success(destination))
+        }
     }
 
     func download(_ download: WKDownload, didFailWithError error: Error, resumeData: Data?) {
-        downloads.removeAll { $0.download === download }
-        guard let presenter = webView.topViewController else { return }
-        let alert = UIAlertController(title: "Download Failed", message: error.localizedDescription, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "OK", style: .cancel))
-        presenter.present(alert, animated: true)
+        dropDownload(download)
+        deliver(.failure(error))
+    }
+}
+
+/// Where downloads wait until they're shared. Emptied at launch, since nothing there is needed after that.
+enum Downloads {
+    static var folder: URL {
+        FileManager.default.temporaryDirectory.appending(path: "Downloads", directoryHint: .isDirectory)
+    }
+
+    static func removeLeftovers() {
+        try? FileManager.default.removeItem(at: folder)
     }
 }
 
 // MARK: - Popup windows
 
-/// A window a site opened with `window.open`, shown in a sheet until the site closes it.
+/// A window a site opened with `window.open` or a same-site link, shown in a sheet until it's closed.
 @MainActor
 @Observable
 final class PopupWindow: Identifiable {
     let webView: WKWebView
     private(set) var host = ""
-    @ObservationIgnored private var observation: NSKeyValueObservation?
+    private(set) var isLoading = false
+    var loadError: String?
+    @ObservationIgnored private var observations: [NSKeyValueObservation] = []
 
     init(webView: WKWebView) {
         self.webView = webView
-        observation = webView.observe(\.url, options: [.initial, .new]) { [weak self] webView, _ in
+        observations.append(webView.observe(\.url, options: [.initial, .new]) { [weak self] webView, _ in
             MainActor.assumeIsolated {
                 self?.host = webView.url?.host() ?? ""
             }
-        }
+        })
+        observations.append(webView.observe(\.isLoading, options: [.initial, .new]) { [weak self] webView, _ in
+            MainActor.assumeIsolated {
+                self?.isLoading = webView.isLoading
+            }
+        })
     }
 }
 
 extension UIView {
-    /// The view controller that is currently on top, for presenting alerts and sheets from WebKit callbacks.
+    /// The view controller on top, for presenting from WebKit callbacks. Nil while a presentation is
+    /// still animating in or out, because UIKit refuses to present anything then.
     var topViewController: UIViewController? {
         var top = window?.rootViewController
-        while let presented = top?.presentedViewController, !presented.isBeingDismissed {
+        while let presented = top?.presentedViewController {
+            if presented.isBeingPresented || presented.isBeingDismissed {
+                return nil
+            }
             top = presented
         }
         return top

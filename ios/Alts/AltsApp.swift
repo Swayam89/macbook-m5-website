@@ -38,14 +38,37 @@ struct AltsApp: App {
                 AltsShortcuts.updateAppShortcutParameters()
             }
             .onChange(of: scenePhase) { _, phase in
-                if phase == .background {
-                    locks.lockAll()
-                }
+                handle(phase)
             }
             .task {
-                guard !LaunchMode.isTesting else { return }
-                await WebsiteData.sweepOrphans(keeping: Set(store.spaces.map(\.id)))
+                Downloads.removeLeftovers()
+                AltsShortcuts.updateAppShortcutParameters()
+                await WebsiteData.removePending()
             }
+        }
+    }
+
+    private var lockedSpaceIsShowing: Bool {
+        guard let id = navigator.path.last, let space = store.space(with: id) else { return false }
+        return space.requiresUnlock
+    }
+
+    private func handle(_ phase: ScenePhase) {
+        switch phase {
+        case .active:
+            PrivacyCover.hide()
+        case .inactive:
+            if lockedSpaceIsShowing {
+                PrivacyCover.show()
+            }
+        case .background:
+            if lockedSpaceIsShowing {
+                PrivacyCover.show()
+            }
+            sessions.dismissPresentations { $0.requiresUnlock }
+            locks.lockAll()
+        @unknown default:
+            break
         }
     }
 }
@@ -59,10 +82,6 @@ enum LaunchMode {
 
     static var seedsSampleSpaces: Bool {
         isUITesting && ProcessInfo.processInfo.arguments.contains("-sample-spaces")
-    }
-
-    static var isTesting: Bool {
-        isUITesting || ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
     }
 
     static var sampleSpaces: [Space] {

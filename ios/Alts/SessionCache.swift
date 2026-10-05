@@ -11,6 +11,8 @@ import UIKit
 @Observable
 final class SessionCache {
     private(set) var sessions: [UUID: SpaceSession] = [:]
+    /// Spaces whose data is being cleared. No session may start for them until it's done.
+    private(set) var clearing: Set<UUID> = []
 
     @ObservationIgnored private var recent: [UUID] = []
     @ObservationIgnored private let limit: Int
@@ -45,6 +47,13 @@ final class SessionCache {
         return session
     }
 
+    /// Marks a space as just used, so it is the last to be released.
+    func markUsed(_ id: UUID) {
+        if sessions[id] != nil {
+            touch(id)
+        }
+    }
+
     /// Brings live sessions in line with the saved spaces after an edit, a reorder or a delete.
     func sync(with spaces: [Space]) {
         for (id, session) in sessions {
@@ -66,18 +75,30 @@ final class SessionCache {
         recent.removeAll { $0 == id }
     }
 
-    /// Deletes a space's website data. The space itself is removed from `SpaceStore` by the caller.
+    /// Deletes a space's website data. Call before removing the space from `SpaceStore`.
     func erase(_ id: UUID) {
+        WebsiteData.markForRemoval(id)
         discard(id)
+        Alerts.remove(for: id)
         Task {
             await WebsiteData.erase(spaceID: id)
         }
     }
 
-    /// Signs a space out of everything and reloads its home page.
+    /// Signs a space out of everything. The page is closed first so it can't write its sign-in
+    /// back while the data is being removed, and it reopens fresh on the home page.
     func clearData(for space: Space) async {
+        clearing.insert(space.id)
+        discard(space.id)
         await WebsiteData.clear(spaceID: space.id)
-        sessions[space.id]?.loadStartPage()
+        clearing.remove(space.id)
+    }
+
+    /// Takes down anything a locked space has on screen, such as a share sheet, before the app is put away.
+    func dismissPresentations(of isLocked: (Space) -> Bool) {
+        for session in sessions.values where isLocked(session.space) {
+            session.dismissPresentations()
+        }
     }
 
     private func touch(_ id: UUID) {
@@ -85,10 +106,11 @@ final class SessionCache {
         recent.append(id)
     }
 
-    /// Discards the least recently used sessions, never the one on screen.
+    /// Releases the least recently used sessions. Never the one on screen, and never one that is
+    /// still downloading, since that would cancel the download.
     private func trim(to count: Int) {
         for id in recent where recent.count > count {
-            if sessions[id]?.isOnScreen == true { continue }
+            guard let session = sessions[id], !session.isOnScreen, !session.hasActiveDownloads else { continue }
             discard(id)
         }
     }
