@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import UIKit
+import WebKit
 @testable import Alts
 
 /// Unread counts and Alerts While Open depend on pages that are off screen still running.
@@ -17,8 +18,12 @@ struct OffScreenTests {
             window.isHidden = true
         }
 
-        window.rootViewController?.view.addSubview(session.webView)
-        session.webView.frame = CGRect(x: 0, y: 0, width: 320, height: 480)
+        let container = WebContainer.ContainerView(frame: window.bounds)
+        container.keepsRunningOffScreen = true
+        window.rootViewController?.view.addSubview(container)
+        container.host(session.webView)
+        #expect(session.isOnScreen)
+
         session.webView.loadHTMLString(
             "<script>let n = 0; setInterval(() => { n += 1; document.title = '(' + n + ') Ticker'; }, 1000);</script>",
             baseURL: URL(string: "https://alts.test/")
@@ -26,13 +31,28 @@ struct OffScreenTests {
         try await Task.sleep(for: .seconds(3))
         #expect((session.unreadCount ?? 0) >= 1, "the page should be ticking while on screen")
 
-        // What SessionCache does when someone switches to another space.
-        session.webView.removeFromSuperview()
+        // Switching to another space removes this space's container from the window.
+        container.removeFromSuperview()
         #expect(!session.isOnScreen)
+        #expect(session.webView.window === window, "the web view should wait backstage, still in the window")
+
         let before = session.unreadCount ?? 0
         try await Task.sleep(for: .seconds(20))
         let after = session.unreadCount ?? 0
-
         #expect(after - before >= 10, "count went from \(before) to \(after) in 20 seconds off screen")
+    }
+
+    /// Popups are not spaces: closing one must take its web view out of the window.
+    @Test func popupsDoNotStayBackstage() throws {
+        let window = try TestWindow.make()
+        defer { window.isHidden = true }
+        let webView = WKWebView(frame: .zero)
+        let container = WebContainer.ContainerView(frame: window.bounds)
+        window.rootViewController?.view.addSubview(container)
+        container.host(webView)
+
+        container.removeFromSuperview()
+
+        #expect(webView.superview == nil)
     }
 }

@@ -62,8 +62,10 @@ final class SpaceSession: NSObject {
         loadStartPage()
     }
 
+    /// True while the page is showing. A space switched away from keeps its web view backstage
+    /// in the window, so having a window isn't enough.
     var isOnScreen: Bool {
-        webView.window != nil
+        webView.window != nil && !Backstage.contains(webView)
     }
 
     /// Applies edits that don't need a new web view. Changing `desktopSite` does, so `SessionCache` replaces the session for that.

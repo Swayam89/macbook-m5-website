@@ -138,7 +138,7 @@ private struct SpaceWebView: View {
     @Bindable var session: SpaceSession
 
     var body: some View {
-        WebContainer(webView: session.webView) {
+        WebContainer(webView: session.webView, keepsRunningOffScreen: true) {
             session.didAttach()
         }
         // WKWebView moves its content out of the keyboard's way on its own. Letting SwiftUI do it as well makes the page jump.
@@ -234,10 +234,13 @@ struct LockedView: View {
 /// of a plain container so the same `WKWebView` can be shown again later.
 struct WebContainer: UIViewRepresentable {
     let webView: WKWebView
+    /// Space pages go backstage when they leave the screen so they keep running. Popups don't.
+    var keepsRunningOffScreen = false
     var onAttach: @MainActor () -> Void = {}
 
     func makeUIView(context: Context) -> ContainerView {
         let container = ContainerView()
+        container.keepsRunningOffScreen = keepsRunningOffScreen
         container.host(webView)
         attached()
         return container
@@ -261,6 +264,7 @@ struct WebContainer: UIViewRepresentable {
 
     final class ContainerView: UIView {
         private(set) weak var hosted: WKWebView?
+        var keepsRunningOffScreen = false
 
         func host(_ webView: WKWebView) {
             hosted?.removeFromSuperview()
@@ -271,11 +275,25 @@ struct WebContainer: UIViewRepresentable {
             hosted = webView
         }
 
-        func release() {
-            if hosted?.superview === self {
-                hosted?.removeFromSuperview()
+        override func willMove(toWindow newWindow: UIWindow?) {
+            super.willMove(toWindow: newWindow)
+            if newWindow == nil {
+                letGo()
             }
+        }
+
+        func release() {
+            letGo()
             hosted = nil
+        }
+
+        private func letGo() {
+            guard let hosted, hosted.superview === self else { return }
+            if keepsRunningOffScreen, let window {
+                Backstage.keep(hosted, in: window)
+            } else {
+                hosted.removeFromSuperview()
+            }
         }
     }
 }
