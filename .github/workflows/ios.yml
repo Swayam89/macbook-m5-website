@@ -108,6 +108,7 @@ jobs:
       - name: Print review material
         if: always()
         run: |
+          grep -hE "ALTS-MEASURE|recorded an issue|Expectation failed|error: -\[|failed \(" build/tests.log 2>/dev/null | head -60 || true
           /usr/bin/python3 - <<'PY'
           import base64, glob, json, os, subprocess, tempfile
           found = {}
