@@ -1,0 +1,102 @@
+# Alts
+
+An iPhone app for using several accounts of the same site side by side: two WhatsApps, a personal and a work Instagram, three Discords. Each account lives in its own space, and spaces never share cookies or storage.
+
+It is the closest thing to an Android "dual apps" or "app clone" feature that can be built for iPhone and shipped. It is not the same thing, and the rest of this file explains why.
+
+## How app cloning works on Android
+
+Android phones sell five different mechanisms under the name "cloning":
+
+1. **Built-in dual apps** (Samsung Dual Messenger, Xiaomi Dual Apps, OnePlus/Oppo App Cloner, Huawei App Twin). The phone maker creates a hidden Android user (user 95 on Samsung, 999 on Xiaomi and OnePlus) and installs the existing app into it. There is one APK, but the second copy runs under a different Linux UID with its own data folder (`/data/user/999/<package>`). Android itself (`USER_TYPE_PROFILE_CLONE` since Android 12) has a clone profile type for this.
+2. **Work profiles** (Shelter, Island, Insular). The same idea built on Android's managed-profile API, so any app can be copied in.
+3. **Container apps** (Parallel Space, Dual Space, VirtualApp). The guest app runs inside the host app's process. The host declares hundreds of placeholder activities and permissions, intercepts calls to Android's system services, and redirects file paths. Every "clone" shares the host's UID and permissions, which is why security researchers and banking trojans both like this technique.
+4. **Repackaging** (App Cloner by Applisto). The APK is unpacked, given a new package name, re-signed with a different key and reinstalled. Anything tied to the original signing certificate breaks: Google sign-in, Play Integrity, in-app purchases.
+5. **Accounts inside the app.** WhatsApp, Instagram, Telegram and X keep several accounts in one install. It is the most reliable option and needs no tricks.
+
+## Why none of that works on iPhone
+
+- **Sandbox.** Every iOS app gets its own container and cannot read or write another app's files. There is no second "user" to install into.
+- **Code signing.** iOS only runs code signed by Apple-issued certificates. An app cannot load or run another app's binary, and App Store binaries are FairPlay-encrypted to the buyer's Apple ID.
+- **App Review Guideline 2.5.2.** Apps "may not … download, install, or execute code which introduces or changes features or functionality of the app, including other apps." This rule also applies to EU and Japan notarization, so alternative marketplaces don't open the door.
+- **Sideloading** a re-signed copy with a changed bundle ID does work for one technical person, but it needs a decrypted IPA (which needs a jailbreak-era exploit), expires every 7 days with a free certificate, loses push notifications, and gets WhatsApp accounts banned for using an unofficial client. It cannot be distributed.
+
+Every "Parallel Space" or "Dual Messenger" app on the App Store is a web browser showing the service's website. Their reviews say so: "it just provided the web based version."
+
+## What Alts does instead
+
+Alts is honest about being that kind of app, and tries to be the best version of it.
+
+- Each space gets its own persistent `WKWebsiteDataStore(forIdentifier:)` (iOS 17 and later). Cookies, local storage, IndexedDB, caches and service workers are separate per space. `IsolationTests` checks this against real WebKit, not a mock.
+- Sites that turn phones away (WhatsApp Web, Discord, Slack, Messenger) get the desktop site with a Safari-identical user agent. Any space can switch with Desktop Site in its menu.
+- The last four spaces you used stay alive, so switching between them doesn't reload the page or drop the connection. Older ones are released to save memory and reload from their saved data when you come back.
+- Spaces can require Face ID, Touch ID or the passcode. The page is covered before iOS takes the app switcher snapshot, and everything locks again when Alts goes to the background.
+- Unread counts are read from page titles, like "(3) WhatsApp", and shown in the list. With Alerts While Open turned on, Alts posts a notification when a space you're not looking at gets new unread items.
+- Sign-in popups open in a sheet that shares the space's data. Other links open in Safari. Downloads go to the share sheet, so you can save to Files or Photos.
+- Each space can be opened from Shortcuts with the Open Space action. Adding that shortcut to the Home Screen gives a space its own icon, the nearest iOS equivalent to a cloned app's icon.
+- Spaces show their initials on a colored tile, never a service's logo.
+
+## What doesn't work, and won't
+
+| Limitation | Why |
+| --- | --- |
+| No notifications while Alts is closed | Web Push doesn't reach web views inside apps (Apple DTS: "Web Push Notifications will not work in apps with a WKWebView"), and iOS suspends apps about five seconds after they leave the screen. |
+| WhatsApp needs another phone | WhatsApp Web is a linked device. The account has to live on a phone, and linked devices sign out if that phone is inactive for 14 days. WhatsApp's own iPhone app has supported two accounts since June 2026, which is better for most people. |
+| No Google sign-in | Google blocks sign-in inside embedded web views (`disallowed_useragent`). Gmail, YouTube and "Sign in with Google" buttons won't work. That's why there's no Google preset. |
+| Messenger needs Facebook | messenger.com closed in April 2026 and now redirects to facebook.com/messages. |
+| Discord and Slack are small | They only serve their desktop sites to phones. Pinch to zoom, use Page Zoom in the menu, or turn the phone sideways. |
+| Instagram posting is limited | Instagram's website can't post Reels or go live. |
+
+## Build and run
+
+You need a Mac with Xcode 26 or later. Xcode 27 is current; the App Store has required the iOS 26 SDK since April 2026. The app runs on iOS 17 and later.
+
+1. Open `ios/Alts.xcodeproj`.
+2. Select the Alts target, then Signing & Capabilities, and pick your team. Change the bundle identifier from `com.swayam89.alts` if you don't own it.
+3. Choose an iPhone or a simulator and press Run.
+
+There are no third-party dependencies. The project uses Xcode's folder-synchronized groups, so new files dropped into `Alts/` are picked up without editing the project.
+
+### Tests
+
+- `AltsTests`: the space list and its file format, address parsing, unread-count parsing, the session cache, and isolation between data stores using real WebKit.
+- `AltsUITests`: adds a space for example.com, opens it and checks the page loaded, and walks the list, context menu and edit screen. Screenshots are attached to the test results.
+- `ServiceProbeTests`: loads every built-in site in a real space and attaches a screenshot plus the final URL and user agent. It needs the network and only runs with `ALTS_PROBE=1`.
+
+From Terminal:
+
+```sh
+cd ios
+xcodebuild test -project Alts.xcodeproj -scheme Alts \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' CODE_SIGNING_ALLOWED=NO
+```
+
+CI runs the same thing on every push that touches `ios/` (`.github/workflows/ios.yml`) and uploads the screenshots as the `alts-results` artifact.
+
+## Before submitting to the App Store
+
+These are the review risks, in order of how likely they are to come up:
+
+- **4.2 Minimum functionality.** Apple rejects apps that are "a repackaged website." Alts adds isolation, locking, alerts and Shortcuts on top, which is the argument to make in the review notes.
+- **5.2.2 Third-party sites.** Apple can ask for proof you're allowed to show a service's content. A general-purpose browser of sites the user picks is the usual defense. Don't add features that scrape or automate a service.
+- **4.1(c) and 5.2.1 Names and trademarks.** Don't put "WhatsApp" or any other service's name or logo in the app's name, icon, subtitle or screenshots. Inside the app, plain text names for the sites are normal browser behavior.
+
+## Layout
+
+```
+Alts/
+  AltsApp.swift          App entry, navigation stack, launch modes for tests
+  Space.swift            The space model and its JSON format
+  Service.swift          Built-in sites, their addresses and quirks
+  SpaceStore.swift       The saved list of spaces
+  SpaceSession.swift     One space's WKWebView and everything WebKit asks of it
+  SessionCache.swift     Keeps recent sessions alive, releases old ones
+  WebsiteData.swift      Erasing, clearing and sweeping data stores
+  LockState.swift        Face ID, Touch ID and passcode locks
+  Alerts.swift           Local notifications for unread counts
+  OpenSpaceIntent.swift  The Shortcuts action
+  SpaceListView.swift    The list, rows and tiles
+  SpaceForm.swift        Adding and editing a space
+  SpaceView.swift        A space on screen, its menu, lock screen and popups
+Design/                  SVG sources for the app icon
+```
