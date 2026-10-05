@@ -34,10 +34,9 @@ struct SpaceQuery: EntityQuery {
         savedSpaces().map(SpaceEntity.init)
     }
 
-    /// Intents can run before any window exists, so they read the saved list directly.
-    @MainActor
+    /// Intents can run before any window exists, so they read the saved list directly, without changing it.
     private func savedSpaces() -> [Space] {
-        SpaceStore(fileURL: SpaceStore.defaultFileURL).spaces
+        SpaceStore.savedSpaces()
     }
 }
 

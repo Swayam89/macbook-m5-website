@@ -111,7 +111,25 @@ jobs:
         if: always()
         continue-on-error: true
         run: |
-          grep -hE "ALTS-MEASURE|recorded an issue|Expectation failed|error: -\[|failed \(" build/tests.log 2>/dev/null | head -60 || true
+          # Failure messages live in the result bundle, not in the log, when tests run on simulator clones.
+          if [ -d build/Tests.xcresult ]; then
+            xcrun xcresulttool get test-results tests --path build/Tests.xcresult --format json > build/test-results.json || true
+            /usr/bin/python3 - <<'PY'
+          import json
+          def walk(node, path):
+              name = node.get("name", "")
+              if node.get("nodeType") == "Failure Message":
+                  print("FAILURE", " > ".join(path[-2:]), "::", name)
+              for child in node.get("children", []):
+                  walk(child, path + [name])
+          try:
+              data = json.load(open("build/test-results.json"))
+              for node in data.get("testNodes", []):
+                  walk(node, [])
+          except Exception as error:
+              print("could not read test results:", error)
+          PY
+          fi
           /usr/bin/python3 - <<'PY'
           import base64, glob, json, os, subprocess, tempfile
           found = {}
@@ -122,7 +140,7 @@ jobs:
                       key = a.get("suggestedHumanReadableName", "").split("_0_")[0]
                       found[key] = os.path.join(folder, a["exportedFileName"])
           for key, path in found.items():
-              if key == "probe-summary" or key.startswith("App UI hierarchy"):
+              if key in ("probe-summary", "measure-placements") or key.startswith("App UI hierarchy"):
                   print(f"=== {key}")
                   print(open(path, errors="replace").read()[:12000])
           for key in ["6-list", "3b-added", "4-space-open", "9-site-list"]:
