@@ -62,7 +62,7 @@ There are no third-party dependencies. The project uses Xcode's folder-synchroni
 
 ### Tests
 
-- `AltsTests`: the space list and its file format (including entries it can't read), address and unread-count parsing, the session cache, the launch cleanup that must never delete data it wasn't told to, and isolation between spaces using real WebKit: cookies, localStorage and IndexedDB stay in their own space, and localStorage is still there after a space's page is closed and reopened.
+- `AltsTests`: the space list and its file format (including entries it can't read), address and unread-count parsing, when a count is worth an alert, the session cache, the launch cleanup that must never delete data it wasn't told to, and isolation between spaces using real WebKit: cookies, localStorage and IndexedDB stay in their own space, and localStorage is still there after a space's page is closed and reopened.
 - `OffScreenTests` checks that a space you switched away from keeps running and that a sign-in popup doesn't stay behind after it closes.
 - `AltsUITests`: adds a space for example.com, opens it and checks the page loaded, walks the list, context menu and edit screen, deletes a space right after launch, launches with a deletion left over from last time, and checks that a locked space's settings close when Alts leaves the screen. Screenshots are attached to the test results.
 - `ServiceProbeTests`: loads every built-in site in a real space and attaches a screenshot plus the final URL, title and user agent. It needs the network and only runs when `ALTS_PROBE=1` reaches the test host.
@@ -105,6 +105,7 @@ Alts/
   SpaceStore.swift       The saved list of spaces
   SpaceSession.swift     One space's WKWebView and everything WebKit asks of it
   SessionCache.swift     Keeps recent sessions alive, releases old ones
+  UnreadTracker.swift    When a page's unread count is worth an alert
   WebsiteData.swift      Erasing and clearing data stores, and finishing deletions after a relaunch
   LockState.swift        Face ID, Touch ID and passcode locks
   Alerts.swift           Local notifications for unread counts

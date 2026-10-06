@@ -144,7 +144,7 @@ private struct SpaceWebView: View {
     @Environment(SessionCache.self) private var sessions
 
     var body: some View {
-        WebContainer(webView: session.webView, keepsRunningOffScreen: true) {
+        WebContainer(webView: session.webView, keepsRunningOffScreen: true, onHide: { session.didDetach() }) {
             sessions.markUsed(session.space.id)
             session.didAttach()
         }
@@ -272,18 +272,22 @@ struct WebContainer: UIViewRepresentable {
     let webView: WKWebView
     /// Space pages go backstage when they leave the screen so they keep running. Popups don't.
     var keepsRunningOffScreen = false
+    /// Called each time the web view leaves the screen.
+    var onHide: @MainActor () -> Void = {}
     /// Called each time the web view is actually on screen in this container.
     var onShow: @MainActor () -> Void = {}
 
     func makeUIView(context: Context) -> ContainerView {
         let container = ContainerView()
         container.keepsRunningOffScreen = keepsRunningOffScreen
+        container.onHide = onHide
         container.onShow = onShow
         container.host(webView)
         return container
     }
 
     func updateUIView(_ container: ContainerView, context: Context) {
+        container.onHide = onHide
         container.onShow = onShow
         if container.hosted !== webView || webView.superview !== container {
             container.host(webView)
@@ -297,7 +301,10 @@ struct WebContainer: UIViewRepresentable {
     final class ContainerView: UIView {
         private(set) weak var hosted: WKWebView?
         var keepsRunningOffScreen = false
+        var onHide: @MainActor () -> Void = {}
         var onShow: @MainActor () -> Void = {}
+        /// The `onHide` given with the hosted page, so replacing the page tells the page that left.
+        private var hostedOnHide: @MainActor () -> Void = {}
 
         func host(_ webView: WKWebView) {
             if let hosted, hosted !== webView, hosted.superview === self {
@@ -309,6 +316,7 @@ struct WebContainer: UIViewRepresentable {
             webView.alpha = 1
             addSubview(webView)
             hosted = webView
+            hostedOnHide = onHide
             if window != nil {
                 onShow()
             }
@@ -340,6 +348,7 @@ struct WebContainer: UIViewRepresentable {
         }
 
         private func letGo(_ webView: WKWebView) {
+            hostedOnHide()
             if keepsRunningOffScreen, let window {
                 // The page keeps running, but nobody wants to hear a video from a space they've left.
                 Task { await webView.pauseAllMediaPlayback() }

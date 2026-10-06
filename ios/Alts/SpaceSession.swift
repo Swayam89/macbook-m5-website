@@ -45,11 +45,7 @@ final class SpaceSession: NSObject {
     @ObservationIgnored private var heldResults: [Result<URL, Error>] = []
     @ObservationIgnored private var needsReload = false
     @ObservationIgnored private var recentCrashes: [Date] = []
-    /// The count last seen or announced, so a title that briefly drops its count doesn't alert twice.
-    @ObservationIgnored private var alertedCount = 0
-    /// The first count a page shows is what was already there when Alts started watching, not news.
-    @ObservationIgnored private var hasCountBaseline = false
-    @ObservationIgnored private var countlessSince: Date?
+    @ObservationIgnored private var unreadTracker = UnreadTracker()
     /// Resume each open dialog with its cancel value when the dialogs are taken away.
     @ObservationIgnored fileprivate var cancelOpenDialogs: [UUID: @MainActor () -> Void] = [:]
     /// The first of this space's presentations still on screen. Anything presented later sits above it.
@@ -139,9 +135,7 @@ final class SpaceSession: NSObject {
 
     /// Called each time the page comes on screen.
     func didAttach() {
-        alertedCount = unread?.value ?? 0
-        hasCountBaseline = true
-        countlessSince = nil
+        unreadTracker.shown(unread?.value)
         Alerts.remove(for: space.id)
         if needsReload {
             needsReload = false
@@ -184,29 +178,16 @@ final class SpaceSession: NSObject {
         webView.removeFromSuperview()
     }
 
+    /// Called each time the page leaves the screen.
+    func didDetach() {
+        unreadTracker.hidden(unread?.value)
+    }
+
     private func titleChanged(to newTitle: String) {
         title = newTitle
         let newUnread = UnreadCount.parse(title: newTitle)
-        if let newUnread {
-            if let countlessSince {
-                let quietFor = -countlessSince.timeIntervalSinceNow
-                // A title without a count for more than a few seconds means everything was read, not a flash.
-                if quietFor > 10 {
-                    alertedCount = 0
-                }
-                // Half a minute without one means the page loaded with nothing unread, so this count is new.
-                if quietFor > 30 {
-                    hasCountBaseline = true
-                }
-            }
-            countlessSince = nil
-            if hasCountBaseline, newUnread.value > alertedCount, space.alertsWhileOpen, !isOnScreen {
-                Alerts.post(for: space, unread: newUnread)
-            }
-            hasCountBaseline = true
-            alertedCount = newUnread.value
-        } else if countlessSince == nil {
-            countlessSince = .now
+        if unreadTracker.update(newUnread?.value), let newUnread, space.alertsWhileOpen, !isOnScreen {
+            Alerts.post(for: space, unread: newUnread)
         }
         unread = newUnread
     }
@@ -464,6 +445,15 @@ extension SpaceSession: WKNavigationDelegate {
 
     func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
         clearError(for: webView)
+        if webView === self.webView {
+            unreadTracker.pageStartedLoading()
+        }
+    }
+
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        if webView === self.webView {
+            unreadTracker.pageFinishedLoading(showing: unread?.value)
+        }
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
