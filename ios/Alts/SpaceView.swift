@@ -314,6 +314,7 @@ struct WebContainer: UIViewRepresentable {
             webView.frame = bounds
             webView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
             webView.alpha = 1
+            webView.setAllMediaPlaybackSuspended(false, completionHandler: {})
             addSubview(webView)
             hosted = webView
             hostedOnHide = onHide
@@ -350,8 +351,10 @@ struct WebContainer: UIViewRepresentable {
         private func letGo(_ webView: WKWebView) {
             hostedOnHide()
             if keepsRunningOffScreen, let window {
-                // The page keeps running, but nobody wants to hear a video from a space they've left.
-                Task { await webView.pauseAllMediaPlayback() }
+                // The page keeps running, but nobody wants to hear a video from a space they've left,
+                // and a page waiting backstage can't start one.
+                webView.pauseAllMediaPlayback(completionHandler: {})
+                webView.setAllMediaPlaybackSuspended(true, completionHandler: {})
                 Backstage.keep(webView, in: window)
             } else {
                 webView.removeFromSuperview()

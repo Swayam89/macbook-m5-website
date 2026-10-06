@@ -71,6 +71,18 @@ struct UnreadTrackerTests {
         #expect(tracker.update(1, at: at(30)), "read somewhere else, then a new message")
     }
 
+    @Test func aLinkThatBecameADownloadDoesNotSilenceTheNextMessage() {
+        var tracker = UnreadTracker()
+        tracker.pageStartedLoading()
+        _ = tracker.update(3, at: at(5))
+        #expect(!tracker.update(nil, at: at(10)))
+        // Taps an attachment: a load starts, then stops when it turns into a download.
+        tracker.pageStartedLoading()
+        tracker.pageStoppedLoading(showing: nil, at: at(11))
+        tracker.hidden(nil, at: at(20))
+        #expect(tracker.update(1, at: at(22)))
+    }
+
     @Test func leavingWhileThePageLoadsKeepsItsFirstCountQuiet() {
         var tracker = UnreadTracker()
         tracker.pageStartedLoading()

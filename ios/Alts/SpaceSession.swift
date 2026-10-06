@@ -100,6 +100,11 @@ final class SpaceSession: NSObject {
         !downloads.isEmpty
     }
 
+    /// A finished download, or its error, is waiting for the space to come back on screen.
+    var hasHeldResults: Bool {
+        !heldResults.isEmpty
+    }
+
     /// Applies edits that don't need a new web view. Changing `desktopSite` does, so `SessionCache` replaces the session for that.
     func update(_ space: Space) {
         self.space = space
@@ -372,7 +377,13 @@ extension SpaceSession {
         textField defaultText: String? = nil
     ) async -> DialogAnswer {
         let cancelled = DialogAnswer(confirmed: false, text: nil)
-        guard Self.isShowing(webView), let presenter = webView.topViewController, presenter.presentedViewController == nil else {
+        // UIKit can't present while a sheet is still animating in or out, so give it a moment.
+        var presenter = webView.topViewController
+        for _ in 0..<10 where presenter == nil && Self.isShowing(webView) {
+            try? await Task.sleep(for: .milliseconds(100))
+            presenter = webView.topViewController
+        }
+        guard Self.isShowing(webView), let presenter, presenter.presentedViewController == nil else {
             return cancelled
         }
         let dialogID = UUID()
@@ -437,10 +448,19 @@ extension SpaceSession: WKNavigationDelegate {
 
     func webView(_ webView: WKWebView, navigationAction: WKNavigationAction, didBecome download: WKDownload) {
         download.delegate = self
+        closePopupIfEmpty(webView)
     }
 
     func webView(_ webView: WKWebView, navigationResponse: WKNavigationResponse, didBecome download: WKDownload) {
         download.delegate = self
+        closePopupIfEmpty(webView)
+    }
+
+    /// A link that opened a popup only to download a file would leave an empty sheet behind.
+    private func closePopupIfEmpty(_ webView: WKWebView) {
+        if webView === popup?.webView, webView.backForwardList.currentItem == nil {
+            popup = nil
+        }
     }
 
     func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
@@ -457,6 +477,9 @@ extension SpaceSession: WKNavigationDelegate {
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        if webView === self.webView {
+            unreadTracker.pageStoppedLoading(showing: unread?.value)
+        }
         record(error, for: webView)
     }
 
@@ -544,8 +567,14 @@ extension SpaceSession: WKDownloadDelegate {
     func download(_ download: WKDownload, decideDestinationUsing response: URLResponse, suggestedFilename: String) async -> URL? {
         let name = suggestedFilename.isEmpty ? "Download" : suggestedFilename
         // Like Safari, nothing is saved unless the person agrees, and a space that isn't showing can't ask.
+        // Asked over the popup while it's open, otherwise over the space's page, including when
+        // the popup was closed because this download was all it held.
+        var source = webView
+        if let popupWebView = popup?.webView, popupWebView === download.webView {
+            source = popupWebView
+        }
         let answer = await dialog(
-            over: download.webView ?? webView,
+            over: source,
             title: "Download \u{201C}\(name)\u{201D}?",
             message: response.url?.host() ?? "",
             actions: [("Cancel", .cancel, false), ("Download", .default, true)]

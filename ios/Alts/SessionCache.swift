@@ -69,6 +69,8 @@ final class SessionCache {
             let session = SpaceSession(space: space)
             sessions[space.id] = session
             recent.insert(space.id, at: 0)
+            // Nobody is looking at it, so it can't play sound or video until it's opened.
+            session.webView.setAllMediaPlaybackSuspended(true, completionHandler: {})
             Backstage.keep(session.webView, in: window)
         }
     }
@@ -147,12 +149,14 @@ final class SessionCache {
 
     /// Releases the least recently used sessions until `count` are left. Spaces kept for alerts don't
     /// count and stay, except on a memory warning. Never releases the space being opened, the one on
-    /// screen, or one that is still downloading (that would cancel the download).
+    /// screen, one that is still downloading (that would cancel the download), or one holding a finished
+    /// download it hasn't shown yet (the file would be lost).
     private func trim(to count: Int, keeping kept: UUID? = nil, includingPinned: Bool = false) {
         let candidates = recent.filter { includingPinned || !pinned.contains($0) }
         var remaining = candidates.count
         for id in candidates where remaining > count {
-            guard id != kept, let session = sessions[id], !session.isOnScreen, !session.hasActiveDownloads else { continue }
+            guard id != kept, let session = sessions[id], !session.isOnScreen,
+                  !session.hasActiveDownloads, !session.hasHeldResults else { continue }
             discard(id)
             remaining -= 1
         }

@@ -55,6 +55,14 @@ struct UnreadTracker {
         }
     }
 
+    /// A load that stopped before a new page arrived, such as a link that turned into a download.
+    /// The old page is still showing, so its title still counts.
+    mutating func pageStoppedLoading(showing count: Int?, at now: Date = .now) {
+        guard awaitingFirstCount else { return }
+        awaitingFirstCount = false
+        pageFinishedLoading(showing: count, at: now)
+    }
+
     /// The page came on screen, so whatever it shows has been seen.
     mutating func shown(_ count: Int?) {
         guard !awaitingFirstCount else { return }
