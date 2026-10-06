@@ -378,12 +378,12 @@ extension SpaceSession {
     ) async -> DialogAnswer {
         let cancelled = DialogAnswer(confirmed: false, text: nil)
         // UIKit can't present while a sheet is still animating in or out, so give it a moment.
-        var presenter = webView.topViewController
-        for _ in 0..<10 where presenter == nil && Self.isShowing(webView) {
+        var top = webView.topViewController
+        for _ in 0..<10 where top == nil && Self.isShowing(webView) {
             try? await Task.sleep(for: .milliseconds(100))
-            presenter = webView.topViewController
+            top = webView.topViewController
         }
-        guard Self.isShowing(webView), let presenter, presenter.presentedViewController == nil else {
+        guard Self.isShowing(webView), let presenter = top, presenter.presentedViewController == nil else {
             return cancelled
         }
         let dialogID = UUID()
