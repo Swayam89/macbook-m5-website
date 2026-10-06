@@ -47,6 +47,8 @@ final class SpaceSession: NSObject {
     @ObservationIgnored private var recentCrashes: [Date] = []
     /// The count last seen or announced, so a title that briefly drops its count doesn't alert twice.
     @ObservationIgnored private var alertedCount = 0
+    /// The first count a page shows is what was already there when Alts started watching, not news.
+    @ObservationIgnored private var hasCountBaseline = false
     @ObservationIgnored private var countlessSince: Date?
     /// Resumes an open JavaScript dialog with its cancel value when the dialog is taken away.
     @ObservationIgnored fileprivate var cancelOpenDialog: (@MainActor () -> Void)?
@@ -135,6 +137,7 @@ final class SpaceSession: NSObject {
     /// Called each time the page comes on screen.
     func didAttach() {
         alertedCount = unread?.value ?? 0
+        hasCountBaseline = true
         countlessSince = nil
         Alerts.remove(for: space.id)
         if needsReload {
@@ -173,14 +176,22 @@ final class SpaceSession: NSObject {
         title = newTitle
         let newUnread = UnreadCount.parse(title: newTitle)
         if let newUnread {
-            // A title without a count for more than a few seconds means everything was read, not a flash.
-            if let countlessSince, countlessSince.timeIntervalSinceNow < -10 {
-                alertedCount = 0
+            if let countlessSince {
+                let quietFor = -countlessSince.timeIntervalSinceNow
+                // A title without a count for more than a few seconds means everything was read, not a flash.
+                if quietFor > 10 {
+                    alertedCount = 0
+                }
+                // Half a minute without one means the page loaded with nothing unread, so this count is new.
+                if quietFor > 30 {
+                    hasCountBaseline = true
+                }
             }
             countlessSince = nil
-            if newUnread.value > alertedCount, space.alertsWhileOpen, !isOnScreen {
+            if hasCountBaseline, newUnread.value > alertedCount, space.alertsWhileOpen, !isOnScreen {
                 Alerts.post(for: space, unread: newUnread)
             }
+            hasCountBaseline = true
             alertedCount = newUnread.value
         } else if countlessSince == nil {
             countlessSince = .now
@@ -246,10 +257,11 @@ final class SpaceSession: NSObject {
             return
         }
         Task {
+            let link = url.absoluteString
             let answer = await dialog(
                 over: webView,
-                title: "Open in Another App?",
-                message: url.host() ?? url.scheme ?? "",
+                title: "Open in another app?",
+                message: link.count > 80 ? String(link.prefix(80)) + "\u{2026}" : link,
                 actions: [("Cancel", .cancel, false), ("Open", .default, true)]
             )
             if answer.confirmed {
@@ -311,17 +323,14 @@ final class SpaceSession: NSObject {
         return downloads.remove(at: index).destination
     }
 
-    fileprivate func dropDownload(_ download: WKDownload) {
-        downloads.removeAll { $0.download === download }
-    }
-
     fileprivate func noteCrash() -> Bool {
         recentCrashes = recentCrashes.filter { $0.timeIntervalSinceNow > -60 } + [.now]
         if recentCrashes.count >= 3 {
             loadError = "This page keeps closing. It may need more memory than iOS allows it."
             return false
         }
-        if !isOnScreen {
+        // A space kept for alerts reloads right away even off screen, or its alerts would stop.
+        if !isOnScreen && !space.alertsWhileOpen {
             needsReload = true
             return false
         }
@@ -478,7 +487,7 @@ extension SpaceSession: WKUIDelegate {
         let child = WKWebView(frame: .zero, configuration: configuration)
         child.navigationDelegate = self
         child.uiDelegate = self
-        popup = PopupWindow(webView: child)
+        popup = PopupWindow(webView: child, request: navigationAction.request)
         return child
     }
 
@@ -536,6 +545,7 @@ extension SpaceSession: WKDownloadDelegate {
         do {
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         } catch {
+            deliver(.failure(error))
             return nil
         }
         let destination = folder.appending(path: name)
@@ -550,7 +560,10 @@ extension SpaceSession: WKDownloadDelegate {
     }
 
     func download(_ download: WKDownload, didFailWithError error: Error, resumeData: Data?) {
-        dropDownload(download)
+        // No destination means it was turned down at the prompt, started in a space that isn't
+        // showing, or cancelled when its space closed. None of those is worth an error.
+        guard let destination = finishDownload(download) else { return }
+        try? FileManager.default.removeItem(at: destination.deletingLastPathComponent())
         deliver(.failure(error))
     }
 }
@@ -576,10 +589,12 @@ final class PopupWindow: Identifiable {
     private(set) var host = ""
     private(set) var isLoading = false
     var loadError: String?
+    @ObservationIgnored private let request: URLRequest
     @ObservationIgnored private var observations: [NSKeyValueObservation] = []
 
-    init(webView: WKWebView) {
+    init(webView: WKWebView, request: URLRequest) {
         self.webView = webView
+        self.request = request
         observations.append(webView.observe(\.url, options: [.initial, .new]) { [weak self] webView, _ in
             MainActor.assumeIsolated {
                 self?.host = webView.url?.host() ?? ""
@@ -590,6 +605,18 @@ final class PopupWindow: Identifiable {
                 self?.isLoading = webView.isLoading
             }
         })
+    }
+}
+
+extension PopupWindow {
+    /// Reloads, or loads the first page again if it never arrived.
+    func retry() {
+        loadError = nil
+        if webView.url == nil {
+            webView.load(request)
+        } else {
+            webView.reload()
+        }
     }
 }
 

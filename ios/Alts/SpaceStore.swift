@@ -17,7 +17,7 @@ final class SpaceStore {
     @ObservationIgnored private var unreadableEntries: [Any] = []
     /// Set when the file exists but couldn't be read at all. Saving is refused so a passing
     /// read error can't replace the saved list with an empty one.
-    @ObservationIgnored private var isReadOnly = false
+    private(set) var isReadOnly = false
     @ObservationIgnored private let log = Logger(subsystem: "com.swayam89.alts", category: "store")
 
     /// Pass `nil` to keep everything in memory (previews and UI tests).

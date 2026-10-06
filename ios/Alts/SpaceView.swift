@@ -154,7 +154,7 @@ private struct SpaceWebView: View {
         .overlay {
             if let error = session.loadError {
                 ContentUnavailableView {
-                    Label("Can't Load Page", systemImage: "wifi.exclamationmark")
+                    Label("Can't Load Page", systemImage: "exclamationmark.triangle")
                 } description: {
                     Text(error)
                 } actions: {
@@ -184,12 +184,12 @@ private struct PopupSheet: View {
                 .overlay {
                     if let error = popup.loadError {
                         ContentUnavailableView {
-                            Label("Can't Load Page", systemImage: "wifi.exclamationmark")
+                            Label("Can't Load Page", systemImage: "exclamationmark.triangle")
                         } description: {
                             Text(error)
                         } actions: {
                             Button("Try Again") {
-                                popup.webView.reload()
+                                popup.retry()
                             }
                             .buttonStyle(.bordered)
                         }
@@ -300,6 +300,7 @@ struct WebContainer: UIViewRepresentable {
             webView.removeFromSuperview()
             webView.frame = bounds
             webView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            webView.alpha = 1
             addSubview(webView)
             hosted = webView
             if window != nil {
@@ -334,6 +335,8 @@ struct WebContainer: UIViewRepresentable {
 
         private func letGo(_ webView: WKWebView) {
             if keepsRunningOffScreen, let window {
+                // The page keeps running, but nobody wants to hear a video from a space they've left.
+                Task { await webView.pauseAllMediaPlayback() }
                 Backstage.keep(webView, in: window)
             } else {
                 webView.removeFromSuperview()

@@ -117,6 +117,37 @@ final class AltsUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["No Spaces"].exists)
     }
 
+    /// Leaving Alts locks the space on screen and closes anything open over it, its settings included.
+    @MainActor
+    func testLeavingAltsClosesALockedSpacesSettings() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-ui-testing", "-sample-spaces"]
+        app.launch()
+
+        let work = row(named: "Work", in: app)
+        XCTAssertTrue(work.waitForExistence(timeout: 10))
+        work.tap()
+        // The simulator has no passcode, so a locked space opens without asking.
+        let actions = app.navigationBars["Work"].buttons["Actions"]
+        XCTAssertTrue(actions.waitForExistence(timeout: 10))
+        actions.tap()
+        app.buttons["Edit Space"].tap()
+        XCTAssertTrue(app.navigationBars["Edit Space"].waitForExistence(timeout: 5))
+
+        XCUIDevice.shared.press(.home)
+        XCTAssertTrue(app.wait(for: .runningBackground, timeout: 10))
+        app.activate()
+
+        XCTAssertTrue(actions.waitForExistence(timeout: 10))
+        attachScreenshot(of: app, named: "10-back-in-locked-space")
+        XCTAssertFalse(app.navigationBars["Edit Space"].exists, "a locked space's settings should close when Alts leaves the screen")
+
+        // Closing it from outside must not leave the sheet unable to open again.
+        actions.tap()
+        app.buttons["Edit Space"].tap()
+        XCTAssertTrue(app.navigationBars["Edit Space"].waitForExistence(timeout: 5))
+    }
+
     @MainActor
     private func row(named name: String, in app: XCUIApplication) -> XCUIElement {
         app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "\(name),")).firstMatch

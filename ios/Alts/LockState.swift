@@ -47,7 +47,10 @@ final class LockState {
     /// locked space. Spaces that aren't locked, or are open right now, pass straight through.
     func confirm(_ space: Space, reason: String) async -> Bool {
         guard !isUnlocked(space) else { return true }
-        return await authenticate(reason: reason)
+        guard await authenticate(reason: reason) else { return false }
+        // Asked once; the space stays open until Alts leaves the screen.
+        unlocked.insert(space.id)
+        return true
     }
 
     /// Asks for Face ID, Touch ID or the passcode. With no passcode set there is nothing to check against, so it passes.

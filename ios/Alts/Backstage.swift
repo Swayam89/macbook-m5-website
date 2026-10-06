@@ -14,6 +14,9 @@ enum Backstage {
         view.removeFromSuperview()
         view.frame = stage.bounds
         view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        // Invisible, because iOS shrinks the screen behind a sheet and would show what's back here.
+        // An invisible page runs just as fast (8 ticks in 8 seconds in the same measurement).
+        view.alpha = 0
         stage.addSubview(view)
     }
 

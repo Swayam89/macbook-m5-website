@@ -15,6 +15,7 @@ struct SpaceForm: View {
     @Environment(Navigator.self) private var navigator
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var service: Service = .whatsApp
     @State private var name = ""
@@ -144,6 +145,12 @@ struct SpaceForm: View {
             .onChange(of: service) { _, newService in
                 desktopSite = newService.prefersDesktopSite
             }
+            .onChange(of: scenePhase) { _, phase in
+                // A locked space's settings close when Alts leaves the screen, like the space itself.
+                if phase == .background, original?.requiresUnlock == true {
+                    dismiss()
+                }
+            }
             .onChange(of: alertsWhileOpen) { _, isOn in
                 guard isOn else { return }
                 Task {
@@ -265,7 +272,7 @@ struct SpaceForm: View {
         space.requiresUnlock = requiresUnlock
         space.desktopSite = desktopSite
         space.alertsWhileOpen = alertsWhileOpen
-        if !original.requiresUnlock && requiresUnlock {
+        if !original.requiresUnlock && requiresUnlock && navigator.path.last == original.id {
             // Locking a space from inside it shouldn't throw you out of it. It locks when you leave Alts.
             locks.markUnlocked(space)
         }

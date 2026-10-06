@@ -67,6 +67,8 @@ struct AltsApp: App {
         switch phase {
         case .active:
             PrivacyCover.hide()
+            // Restarts alert spaces that a memory warning released.
+            sessions.keepRunning(store.spaces)
         case .inactive:
             if lockedSpaceIsShowing {
                 PrivacyCover.show()
@@ -74,6 +76,10 @@ struct AltsApp: App {
         case .background:
             if lockedSpaceIsShowing {
                 PrivacyCover.show()
+                // Close everything over the locked space, stacked sheets included, not only the top one.
+                UIApplication.shared.connectedScenes
+                    .compactMap { ($0 as? UIWindowScene)?.keyWindow?.rootViewController }
+                    .forEach { $0.dismiss(animated: false) }
             }
             sessions.dismissPresentations { $0.requiresUnlock }
             locks.lockAll()

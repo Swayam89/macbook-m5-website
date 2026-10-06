@@ -10,6 +10,11 @@ struct SpaceListView: View {
 
     var body: some View {
         List {
+            if store.isReadOnly {
+                Text("Alts couldn't read your saved spaces, so changes you make now won't be kept. Quit and reopen Alts to try again.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
             ForEach(store.spaces) { space in
                 NavigationLink(value: space.id) {
                     SpaceRow(

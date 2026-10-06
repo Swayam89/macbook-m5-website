@@ -78,8 +78,12 @@ enum Service: String, CaseIterable, Identifiable, Codable, Sendable {
             "WhatsApp's website works as a linked device, so the account has to stay active on another phone. If it suggests downloading the app, tap Continue to WhatsApp Web, then link it from that phone under Linked Devices. WhatsApp's own app can also hold two accounts."
         case .messenger:
             "Messenger's website closed in 2026, so this opens your messages on facebook.com. You need a Facebook account."
-        case .discord, .slack:
-            "This loads the desktop site, which is small on a phone. Pinch to zoom, or turn your phone sideways."
+        case .discord:
+            "This loads the desktop site, which is small on a phone. Use Page Zoom in the menu, pinch to zoom, or turn your phone sideways."
+        case .slack:
+            "This loads the desktop site, which is small on a phone. Use Page Zoom in the menu, pinch to zoom, or turn your phone sideways. Sign in with Google doesn't work here, so use your email."
+        case .x, .linkedIn, .reddit:
+            "Sign in with Google doesn't work here, so use your email and password."
         case .custom:
             "Google accounts can't sign in here. Google blocks sign-in inside apps that show web pages."
         default:

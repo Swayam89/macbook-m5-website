@@ -50,7 +50,7 @@ Alts is that kind of app, and says so.
 
 ## Build and run
 
-Alts is an iPhone app. It also runs on iPad and on Apple silicon Macs in iPhone compatibility mode.
+Alts is an iPhone app. iPads and Apple silicon Macs can run iPhone apps in compatibility mode, but Alts has only been tested on the iPhone simulator.
 
 You need a Mac with Xcode 26 or later. Xcode 27 is current; the App Store has required the iOS 26 SDK since April 2026. The app runs on iOS 17 and later.
 
@@ -63,8 +63,8 @@ There are no third-party dependencies. The project uses Xcode's folder-synchroni
 ### Tests
 
 - `AltsTests`: the space list and its file format (including entries it can't read), address and unread-count parsing, the session cache, the launch cleanup that must never delete data it wasn't told to, and isolation between spaces using real WebKit: cookies, localStorage and IndexedDB stay in their own space, and localStorage is still there after a space's page is closed and reopened.
-- `OffScreenTests` checks that a space you switched away from keeps running, and `PlacementMeasurementTests` records how WebKit treats a page in different off-screen positions.
-- `AltsUITests`: adds a space for example.com, opens it and checks the page loaded, and walks the list, context menu and edit screen. Screenshots are attached to the test results.
+- `OffScreenTests` checks that a space you switched away from keeps running and that a sign-in popup doesn't stay behind after it closes.
+- `AltsUITests`: adds a space for example.com, opens it and checks the page loaded, walks the list, context menu and edit screen, deletes a space right after launch, and launches with a deletion left over from last time. Screenshots are attached to the test results.
 - `ServiceProbeTests`: loads every built-in site in a real space and attaches a screenshot plus the final URL, title and user agent. It needs the network and only runs when `ALTS_PROBE=1` reaches the test host.
 
 From Terminal:
@@ -81,7 +81,7 @@ TEST_RUNNER_ALTS_PROBE=1 xcodebuild test -project Alts.xcodeproj -scheme Alts \
   -only-testing:AltsTests/ServiceProbeTests CODE_SIGNING_ALLOWED=NO
 ```
 
-In Xcode, set `ALTS_PROBE` to `1` under the scheme's Test action, in Arguments, Environment Variables.
+In Xcode, choose Product, Scheme, Edit Scheme, and add `ALTS_PROBE` with the value `1` under Run, Arguments, Environment Variables. The Test action uses the Run action's variables, so the probe runs the next time you test.
 
 CI (`.github/workflows/ios.yml`) builds once, then runs the unit and UI tests on one simulator at a time. It runs the site probe only when the workflow is started by hand. It currently builds with Xcode 26.6 and tests on the iOS 26.5 simulator, the newest stable pair on GitHub's macOS runners; it has not run on iOS 27 or on a physical iPhone.
 
@@ -105,12 +105,18 @@ Alts/
   SpaceStore.swift       The saved list of spaces
   SpaceSession.swift     One space's WKWebView and everything WebKit asks of it
   SessionCache.swift     Keeps recent sessions alive, releases old ones
-  WebsiteData.swift      Erasing, clearing and sweeping data stores
+  WebsiteData.swift      Erasing and clearing data stores, and finishing deletions after a relaunch
   LockState.swift        Face ID, Touch ID and passcode locks
   Alerts.swift           Local notifications for unread counts
   OpenSpaceIntent.swift  The Shortcuts action
   SpaceListView.swift    The list, rows and tiles
   SpaceForm.swift        Adding and editing a space
   SpaceView.swift        A space on screen, its menu, lock screen and popups
+  Backstage.swift        Where spaces that aren't showing keep running
+  PrivacyCover.swift     The cover over a locked space in the app switcher
+  WebAddress.swift       Turning typed text into an address, same-site checks
+  Navigator.swift        Which space is open, so Shortcuts and alerts can open one
+AltsTests/               Unit tests, isolation and off-screen tests, the site probe
+AltsUITests/             UI tests
 Design/                  SVG sources for the app icon
 ```
