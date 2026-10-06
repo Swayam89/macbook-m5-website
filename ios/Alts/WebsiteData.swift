@@ -31,6 +31,18 @@ enum WebsiteData {
     /// after they're torn down, so this retries with a short backoff. Anything still left is
     /// retried on a later launch by `removePending()`.
     static func erase(spaceID: UUID) async {
+        // remove(forIdentifier:) crashes the app when WebKit's network process isn't running yet,
+        // which is the case after launch until a page has loaded (CI's UI tests caught this).
+        // Asking any store for its records starts the process, and holding the store keeps it up.
+        let starter = WKWebsiteDataStore.nonPersistent()
+        defer { withExtendedLifetime(starter) {} }
+        _ = await starter.dataRecords(ofTypes: [WKWebsiteDataTypeCookies])
+
+        guard await WKWebsiteDataStore.allDataStoreIdentifiers.contains(spaceID) else {
+            // Nothing on disk, for example a space deleted before its page ever loaded.
+            forget(spaceID)
+            return
+        }
         for attempt in 0..<6 {
             do {
                 try await WKWebsiteDataStore.remove(forIdentifier: spaceID)

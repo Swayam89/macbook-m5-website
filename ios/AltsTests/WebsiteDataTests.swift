@@ -35,6 +35,18 @@ struct WebsiteDataTests {
         #expect(WebsiteData.pendingRemovals()[id] == nil)
     }
 
+    @Test func erasingASpaceThatNeverStoredAnythingFinishesQuickly() async {
+        let id = UUID()
+        defer { WebsiteData.forget(id) }
+        WebsiteData.markForRemoval(id)
+        let started = Date.now
+
+        await WebsiteData.erase(spaceID: id)
+
+        #expect(WebsiteData.pendingRemovals()[id] == nil)
+        #expect(Date.now.timeIntervalSince(started) < 3)
+    }
+
     /// A removal that keeps failing, or crashes, is tried on at most three launches.
     @Test func launchRemovalsGiveUpAfterThreeTries() async {
         let id = UUID()

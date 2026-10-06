@@ -84,6 +84,25 @@ final class AltsUITests: XCTestCase {
         attachScreenshot(of: app, named: "9-site-list")
     }
 
+    /// Deleting a space before any page has loaded used to crash inside WebKit.
+    @MainActor
+    func testDeletingASpaceRightAfterLaunch() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-ui-testing", "-sample-spaces"]
+        app.launch()
+
+        let shop = row(named: "Shop", in: app)
+        XCTAssertTrue(shop.waitForExistence(timeout: 10))
+        shop.swipeLeft()
+        app.buttons["Delete"].firstMatch.tap()
+        app.buttons["Delete Space"].tap()
+
+        XCTAssertTrue(shop.waitForNonExistence(timeout: 5))
+        sleep(5)
+        XCTAssertEqual(app.state, .runningForeground)
+        XCTAssertTrue(row(named: "Personal", in: app).exists)
+    }
+
     /// An interrupted deletion is finished a few seconds after launch. It must never crash the app.
     @MainActor
     func testLaunchWithAnUnfinishedDeletion() throws {
