@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import UIKit
 @testable import Alts
 
 @MainActor
@@ -53,6 +54,30 @@ struct SessionCacheTests {
         #expect(cache.existingSession(for: deleted.id) == nil)
         #expect(cache.existingSession(for: kept.id) == nil, "a desktop switch needs a new web view")
         #expect(cache.session(for: kept) !== original)
+    }
+
+    @Test func alertSpacesStartAgainAfterAMemoryWarning() async throws {
+        let window = try TestWindow.make()
+        let cache = SessionCache(recoveryDelay: .milliseconds(500))
+        let spaces = ["A", "B"].map {
+            Space(name: $0, service: .custom, customURL: URL(string: "about:blank"), tint: .graphite, alertsWhileOpen: true)
+        }
+        let running = { spaces.filter { cache.existingSession(for: $0.id) != nil }.count }
+        defer {
+            spaces.forEach { cache.discard($0.id) }
+            window.isHidden = true
+        }
+
+        cache.keepRunning(spaces)
+        #expect(running() == 2)
+
+        // A memory warning keeps only one session.
+        NotificationCenter.default.post(name: UIApplication.didReceiveMemoryWarningNotification, object: nil)
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(running() == 1)
+
+        try await Task.sleep(for: .seconds(2))
+        #expect(running() == 2, "the released space should start again once memory recovers")
     }
 
     @Test func syncAppliesZoomWithoutRebuilding() {

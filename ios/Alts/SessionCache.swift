@@ -17,17 +17,22 @@ final class SessionCache {
     @ObservationIgnored private var recent: [UUID] = []
     /// Spaces with Alerts While Open, started in the background so they can alert before they're opened.
     @ObservationIgnored private var pinned: Set<UUID> = []
+    /// The list last given to `keepRunning`, to start the alert spaces again after a memory warning.
+    @ObservationIgnored private var lastSpaces: [Space] = []
+    @ObservationIgnored private var memoryWarnings = 0
     @ObservationIgnored private let limit: Int
+    @ObservationIgnored private let recoveryDelay: Duration
 
-    init(limit: Int = 4) {
+    init(limit: Int = 4, recoveryDelay: Duration = .seconds(60)) {
         self.limit = limit
+        self.recoveryDelay = recoveryDelay
         _ = NotificationCenter.default.addObserver(
             forName: UIApplication.didReceiveMemoryWarningNotification,
             object: nil,
             queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated {
-                self?.trim(to: 1, includingPinned: true)
+                self?.didReceiveMemoryWarning()
             }
         }
     }
@@ -53,6 +58,7 @@ final class SessionCache {
     /// backstage so their unread counts and alerts work before anyone opens them. Locked spaces wait
     /// until they're unlocked, and an Alerts While Open space stops being kept once the setting is off.
     func keepRunning(_ spaces: [Space]) {
+        lastSpaces = spaces
         let wanted = spaces.filter { $0.alertsWhileOpen && !$0.requiresUnlock }.prefix(limit)
         pinned = Set(wanted.map(\.id))
         guard let window = UIApplication.shared.connectedScenes
@@ -118,6 +124,19 @@ final class SessionCache {
     func dismissPresentations(of isLocked: (Space) -> Bool) {
         for session in sessions.values where isLocked(session.space) {
             session.dismissPresentations()
+        }
+    }
+
+    /// Releases everything but the space on screen. The alert spaces start again once a minute
+    /// passes without another warning, so alerts pause instead of stopping until Alts is reopened.
+    private func didReceiveMemoryWarning() {
+        trim(to: 1, includingPinned: true)
+        memoryWarnings += 1
+        let warning = memoryWarnings
+        Task { [weak self, recoveryDelay] in
+            try? await Task.sleep(for: recoveryDelay)
+            guard let self, self.memoryWarnings == warning else { return }
+            self.keepRunning(self.lastSpaces)
         }
     }
 
