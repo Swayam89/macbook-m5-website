@@ -84,6 +84,20 @@ final class AltsUITests: XCTestCase {
         attachScreenshot(of: app, named: "9-site-list")
     }
 
+    /// An interrupted deletion is finished a few seconds after launch. It must never crash the app.
+    @MainActor
+    func testLaunchWithAnUnfinishedDeletion() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-ui-testing", "-pending-removal"]
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["No Spaces"].waitForExistence(timeout: 10))
+        // The cleanup starts three seconds after launch.
+        sleep(8)
+        XCTAssertEqual(app.state, .runningForeground)
+        XCTAssertTrue(app.staticTexts["No Spaces"].exists)
+    }
+
     @MainActor
     private func row(named name: String, in app: XCUIApplication) -> XCUIElement {
         app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "\(name),")).firstMatch

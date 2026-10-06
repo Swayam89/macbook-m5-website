@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import UIKit
 import WebKit
 @testable import Alts
 
@@ -10,24 +11,63 @@ struct WebsiteDataTests {
     /// merely isn't in the list, for example because the list failed to load, must survive it.
     @Test func dataThatWasNeverDeletedSurvivesTheLaunchCleanup() async throws {
         let id = UUID()
-        do {
-            let store = WKWebsiteDataStore(forIdentifier: id)
-            let cookie = try #require(HTTPCookie(properties: [
-                .domain: "alts.test", .path: "/", .name: "session", .value: "kept",
-                .expires: Date.now.addingTimeInterval(3600),
-            ]))
-            await store.httpCookieStore.setCookie(cookie)
-        }
+        defer { WebsiteData.forget(id) }
+        try await storeSomething(in: id)
+
         let before = await WKWebsiteDataStore.allDataStoreIdentifiers
         try #require(before.contains(id), "the test store should exist on disk")
 
         await WebsiteData.removePending()
-        let afterCleanup = await WKWebsiteDataStore.allDataStoreIdentifiers
-        #expect(afterCleanup.contains(id))
+        let after = await WKWebsiteDataStore.allDataStoreIdentifiers
+        #expect(after.contains(id))
+    }
+
+    @Test func aDeletedSpacesDataIsRemoved() async throws {
+        let id = UUID()
+        defer { WebsiteData.forget(id) }
+        try await storeSomething(in: id)
 
         WebsiteData.markForRemoval(id)
+        await WebsiteData.erase(spaceID: id)
+
+        let remaining = await WKWebsiteDataStore.allDataStoreIdentifiers
+        #expect(!remaining.contains(id))
+        #expect(WebsiteData.pendingRemovals()[id] == nil)
+    }
+
+    /// A removal that keeps failing, or crashes, is tried on at most three launches.
+    @Test func launchRemovalsGiveUpAfterThreeTries() async {
+        let id = UUID()
+        defer { WebsiteData.forget(id) }
+        WebsiteData.markForRemoval(id)
+        // Pretend three launches already tried.
+        for _ in 0..<3 {
+            var pending = WebsiteData.pendingRemovals()
+            pending[id] = (pending[id] ?? 0) + 1
+            try? JSONEncoder().encode(pending).write(to: URL.applicationSupportDirectory.appending(path: "pending-removals.json"))
+        }
+
         await WebsiteData.removePending()
-        let afterRemoval = await WKWebsiteDataStore.allDataStoreIdentifiers
-        #expect(!afterRemoval.contains(id))
+
+        #expect(WebsiteData.pendingRemovals()[id] == nil)
+    }
+
+    /// Writes a cookie through a real page, so WebKit has its network process running for the store
+    /// the way it does in the app, then closes the page so nothing holds the store.
+    private func storeSomething(in id: UUID) async throws {
+        let window = try TestWindow.make()
+        defer { window.isHidden = true }
+        let configuration = WKWebViewConfiguration()
+        configuration.websiteDataStore = WKWebsiteDataStore(forIdentifier: id)
+        var webView: WKWebView? = WKWebView(frame: window.bounds, configuration: configuration)
+        window.rootViewController?.view.addSubview(webView!)
+        webView?.loadHTMLString("<!doctype html><title>t</title>", baseURL: URL(string: "https://alts.test/"))
+        _ = try await webView?.callAsyncJavaScript(
+            "document.cookie = 'session=kept; max-age=3600; path=/'; return document.cookie;",
+            contentWorld: .page
+        )
+        webView?.removeFromSuperview()
+        webView = nil
+        try await Task.sleep(for: .seconds(1))
     }
 }

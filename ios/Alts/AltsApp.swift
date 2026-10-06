@@ -17,6 +17,9 @@ struct AltsApp: App {
                 store.add(space)
             }
         }
+        if LaunchMode.simulatesPendingRemoval {
+            WebsiteData.markForRemoval(UUID())
+        }
         _store = State(initialValue: store)
         UNUserNotificationCenter.current().delegate = NotificationRouter.shared
     }
@@ -47,8 +50,10 @@ struct AltsApp: App {
             .task {
                 Downloads.removeLeftovers()
                 AltsShortcuts.updateAppShortcutParameters()
-                await WebsiteData.removePending()
                 sessions.keepRunning(store.spaces)
+                // Unfinished removals wait until the app is up, and give up after a few launches.
+                try? await Task.sleep(for: .seconds(3))
+                await WebsiteData.removePending()
             }
         }
     }
@@ -83,6 +88,11 @@ enum LaunchMode {
     /// UI tests run against an in-memory list so they never touch real spaces.
     static var isUITesting: Bool {
         ProcessInfo.processInfo.arguments.contains("-ui-testing")
+    }
+
+    /// Launches as if a deletion had been interrupted, to check the launch cleanup is safe.
+    static var simulatesPendingRemoval: Bool {
+        isUITesting && ProcessInfo.processInfo.arguments.contains("-pending-removal")
     }
 
     static var seedsSampleSpaces: Bool {
