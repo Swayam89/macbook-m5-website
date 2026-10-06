@@ -7,7 +7,7 @@ import WebKit
 /// The whole app rests on one promise: two spaces never share a login. These tests check it
 /// against real WebKit, not a mock.
 @MainActor
-@Suite(.serialized, .timeLimit(.minutes(2)))
+@Suite(.serialized, .timeLimit(.minutes(4)))
 struct IsolationTests {
     @Test func cookiesStayInTheirOwnSpace() async throws {
         let first = WKWebsiteDataStore(forIdentifier: UUID())
@@ -124,7 +124,7 @@ struct IsolationTests {
         configuration.websiteDataStore = WKWebsiteDataStore(forIdentifier: spaceID)
         let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 320, height: 480), configuration: configuration)
         window.rootViewController?.view.addSubview(webView)
-        let waiter = NavigationWaiter()
+        let waiter = NavigationWaiter(webView: webView)
         webView.navigationDelegate = waiter
         webView.loadHTMLString("<!doctype html><title>t</title>", baseURL: URL(string: "https://alts.test/"))
         try await waiter.wait()
@@ -134,22 +134,37 @@ struct IsolationTests {
 
 @MainActor
 private final class NavigationWaiter: NSObject, WKNavigationDelegate {
+    private weak var webView: WKWebView?
     private var continuation: CheckedContinuation<Void, Error>?
     private var result: Result<Void, Error>?
+    private var reloadedAfterProcessQuit = false
+
+    init(webView: WKWebView) {
+        self.webView = webView
+    }
 
     struct TimedOut: Error, CustomStringConvertible {
-        var description: String { "The test page didn't finish loading within 30 seconds" }
+        let isLoading: Bool
+        let progress: Double
+        var description: String {
+            "The test page didn't finish loading within 60 seconds (still loading: \(isLoading), progress: \(progress))"
+        }
+    }
+
+    struct ProcessQuit: Error, CustomStringConvertible {
+        var description: String { "The test page's web content process quit twice" }
     }
 
     func wait() async throws {
         if let result { return try result.get() }
         let timer = Task { [weak self] in
             do {
-                try await Task.sleep(for: .seconds(30))
+                try await Task.sleep(for: .seconds(60))
             } catch {
                 return
             }
-            self?.finish(.failure(TimedOut()))
+            guard let self else { return }
+            self.finish(.failure(TimedOut(isLoading: self.webView?.isLoading ?? false, progress: self.webView?.estimatedProgress ?? 0)))
         }
         defer { timer.cancel() }
         try await withCheckedThrowingContinuation { self.continuation = $0 }
@@ -172,5 +187,15 @@ private final class NavigationWaiter: NSObject, WKNavigationDelegate {
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
         finish(.failure(error))
+    }
+
+    /// A busy simulator can kill a page's process while it loads, and then no navigation callback ever comes.
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        guard !reloadedAfterProcessQuit else {
+            finish(.failure(ProcessQuit()))
+            return
+        }
+        reloadedAfterProcessQuit = true
+        webView.reload()
     }
 }

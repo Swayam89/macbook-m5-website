@@ -10,8 +10,8 @@ struct SpaceListView: View {
 
     var body: some View {
         List {
-            if store.isReadOnly {
-                Text("Alts couldn't read your saved spaces, so changes you make now won't be kept. Quit and reopen Alts to try again.")
+            if let notice {
+                Text(notice)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -45,7 +45,7 @@ struct SpaceListView: View {
             .onMove { store.move(fromOffsets: $0, toOffset: $1) }
         }
         .overlay {
-            if store.spaces.isEmpty {
+            if store.spaces.isEmpty && !store.isReadOnly {
                 ContentUnavailableView {
                     Label("No Spaces", systemImage: "square.on.square")
                 } description: {
@@ -73,6 +73,8 @@ struct SpaceListView: View {
                 Button("Add Space", systemImage: "plus") {
                     isAdding = true
                 }
+                // A space added now couldn't be saved, and its sign-ins would be left behind.
+                .disabled(store.isReadOnly)
             }
         }
         .sheet(isPresented: $isAdding) {
@@ -93,6 +95,19 @@ struct SpaceListView: View {
         } message: { _ in
             Text("This signs you out and erases everything the site saved in this space.")
         }
+    }
+
+    private var notice: String? {
+        if store.isReadOnly {
+            return "Alts can't read your saved spaces right now. They aren't lost, and Alts tries again each time you come back to it."
+        }
+        if store.lastSaveFailed {
+            return "Alts couldn't save your last change. It will try again with the next one."
+        }
+        if store.setAsideDamagedList && store.spaces.isEmpty {
+            return "Your saved list of spaces was damaged, so Alts started a new one. Add your spaces again to keep using them."
+        }
+        return nil
     }
 
     /// A locked space asks for Face ID before its settings open.

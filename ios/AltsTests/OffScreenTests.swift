@@ -28,7 +28,13 @@ struct OffScreenTests {
             "<script>let n = 0; setInterval(() => { n += 1; document.title = '(' + n + ') Ticker'; }, 1000);</script>",
             baseURL: URL(string: "https://alts.test/")
         )
-        try await Task.sleep(for: .seconds(3))
+        // Wait for the first tick rather than a fixed time. On a slow runner WebKit can take
+        // several seconds to start the page's process (CI run 12 needed more than 3).
+        var waited = 0
+        while (session.unread?.value ?? 0) < 1 && waited < 30 {
+            try await Task.sleep(for: .seconds(1))
+            waited += 1
+        }
         #expect((session.unread?.value ?? 0) >= 1, "the page should be ticking while on screen")
 
         // Switching to another space removes this space's container from the window.

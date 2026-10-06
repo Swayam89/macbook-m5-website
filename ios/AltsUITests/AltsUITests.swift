@@ -121,13 +121,12 @@ final class AltsUITests: XCTestCase {
     @MainActor
     func testLeavingAltsClosesALockedSpacesSettings() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["-ui-testing", "-sample-spaces"]
+        app.launchArguments = ["-ui-testing", "-sample-spaces", "-pass-authentication"]
         app.launch()
 
         let work = row(named: "Work", in: app)
         XCTAssertTrue(work.waitForExistence(timeout: 10))
         work.tap()
-        // The simulator has no passcode, so a locked space opens without asking.
         let actions = app.navigationBars["Work"].buttons["Actions"]
         XCTAssertTrue(actions.waitForExistence(timeout: 10))
         actions.tap()

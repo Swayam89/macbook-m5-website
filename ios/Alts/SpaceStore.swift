@@ -18,6 +18,9 @@ final class SpaceStore {
     /// Set when the file exists but couldn't be read at all. Saving is refused so a passing
     /// read error can't replace the saved list with an empty one.
     private(set) var isReadOnly = false
+    /// Set when the file wasn't a list at all and was set aside to start a new one.
+    private(set) var setAsideDamagedList = false
+    private(set) var lastSaveFailed = false
     @ObservationIgnored private let log = Logger(subsystem: "com.swayam89.alts", category: "store")
 
     /// Pass `nil` to keep everything in memory (previews and UI tests).
@@ -34,6 +37,14 @@ final class SpaceStore {
     nonisolated static func savedSpaces(at url: URL = defaultFileURL) -> [Space] {
         guard let data = try? Data(contentsOf: url), let decoded = try? decode(data) else { return [] }
         return decoded.spaces
+    }
+
+    /// Tries reading the list again after a read error, which can happen when iOS starts Alts
+    /// early, before the phone's first unlock. Nothing is lost: adding is off until the list is read.
+    func retryIfUnreadable() {
+        guard isReadOnly else { return }
+        isReadOnly = false
+        load()
     }
 
     func space(with id: UUID) -> Space? {
@@ -95,9 +106,14 @@ final class SpaceStore {
         } catch {
             // Not a list at all. Set it aside so nothing is lost, and start a new one.
             log.error("Spaces file is damaged: \(error.localizedDescription, privacy: .public)")
-            let backup = fileURL.appendingPathExtension("unreadable")
-            try? FileManager.default.removeItem(at: backup)
+            var backup = fileURL.appendingPathExtension("unreadable")
+            var number = 2
+            while FileManager.default.fileExists(atPath: backup.path(percentEncoded: false)) {
+                backup = fileURL.appendingPathExtension("unreadable-\(number)")
+                number += 1
+            }
             try? FileManager.default.moveItem(at: fileURL, to: backup)
+            setAsideDamagedList = true
         }
     }
 
@@ -134,8 +150,10 @@ final class SpaceStore {
                 options: [.prettyPrinted, .sortedKeys]
             )
             try data.write(to: fileURL, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+            lastSaveFailed = false
         } catch {
             log.error("Could not save spaces: \(error.localizedDescription, privacy: .public)")
+            lastSaveFailed = true
         }
     }
 }

@@ -67,21 +67,23 @@ struct AltsApp: App {
         switch phase {
         case .active:
             PrivacyCover.hide()
+            store.retryIfUnreadable()
             // Restarts alert spaces that a memory warning released.
             sessions.keepRunning(store.spaces)
         case .inactive:
-            if lockedSpaceIsShowing {
+            if lockedSpaceIsShowing && !locks.isAuthenticating {
                 PrivacyCover.show()
             }
         case .background:
+            // Sessions go first, so a file on a share sheet is kept and offered again after unlocking.
+            sessions.dismissPresentations { $0.requiresUnlock }
             if lockedSpaceIsShowing {
                 PrivacyCover.show()
-                // Close everything over the locked space, stacked sheets included, not only the top one.
+                // Then anything else over the locked space, such as its settings or Share Page.
                 UIApplication.shared.connectedScenes
                     .compactMap { ($0 as? UIWindowScene)?.keyWindow?.rootViewController }
                     .forEach { $0.dismiss(animated: false) }
             }
-            sessions.dismissPresentations { $0.requiresUnlock }
             locks.lockAll()
         @unknown default:
             break
@@ -99,6 +101,11 @@ enum LaunchMode {
     /// Launches as if a deletion had been interrupted, to check the launch cleanup is safe.
     static var simulatesPendingRemoval: Bool {
         isUITesting && ProcessInfo.processInfo.arguments.contains("-pending-removal")
+    }
+
+    /// Passes every Face ID and passcode check, because UI tests can't answer the system prompt.
+    static var passesAuthentication: Bool {
+        isUITesting && ProcessInfo.processInfo.arguments.contains("-pass-authentication")
     }
 
     static var seedsSampleSpaces: Bool {

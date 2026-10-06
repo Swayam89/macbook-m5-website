@@ -50,9 +50,12 @@ final class SpaceSession: NSObject {
     /// The first count a page shows is what was already there when Alts started watching, not news.
     @ObservationIgnored private var hasCountBaseline = false
     @ObservationIgnored private var countlessSince: Date?
-    /// Resumes an open JavaScript dialog with its cancel value when the dialog is taken away.
-    @ObservationIgnored fileprivate var cancelOpenDialog: (@MainActor () -> Void)?
+    /// Resume each open dialog with its cancel value when the dialogs are taken away.
+    @ObservationIgnored fileprivate var cancelOpenDialogs: [UUID: @MainActor () -> Void] = [:]
+    /// The first of this space's presentations still on screen. Anything presented later sits above it.
     @ObservationIgnored fileprivate weak var presentedController: UIViewController?
+    /// Files on a share sheet right now, offered again after unlocking if the space locks first.
+    @ObservationIgnored private var sharing: [(sheet: UIActivityViewController, file: URL)] = []
 
     init(space: Space) {
         self.space = space
@@ -153,9 +156,18 @@ final class SpaceSession: NSObject {
 
     /// Takes down anything this space put on screen, for when it locks.
     func dismissPresentations() {
-        cancelOpenDialog?()
-        cancelOpenDialog = nil
-        presentedController?.dismiss(animated: false)
+        for cancel in cancelOpenDialogs.values {
+            cancel()
+        }
+        cancelOpenDialogs.removeAll()
+        for (sheet, file) in sharing {
+            // Keep the file instead of deleting it with the sheet.
+            sheet.completionWithItemsHandler = nil
+            heldResults.append(.success(file))
+        }
+        sharing.removeAll()
+        // Dismissing from below the first one also takes down everything stacked on top of it.
+        presentedController?.presentingViewController?.dismiss(animated: false)
         presentedController = nil
         popup = nil
     }
@@ -238,7 +250,9 @@ final class SpaceSession: NSObject {
             return false
         }
         presenter.present(controller, animated: true)
-        presentedController = controller
+        if presentedController?.presentingViewController == nil {
+            presentedController = controller
+        }
         return true
     }
 
@@ -277,10 +291,15 @@ final class SpaceSession: NSObject {
             let share = UIActivityViewController(activityItems: [file], applicationActivities: nil)
             share.popoverPresentationController?.sourceView = webView
             share.popoverPresentationController?.sourceRect = CGRect(x: webView.bounds.midX, y: webView.bounds.midY, width: 1, height: 1)
-            share.completionWithItemsHandler = { _, _, _, _ in
+            share.completionWithItemsHandler = { [weak self] _, _, _, _ in
                 try? FileManager.default.removeItem(at: file.deletingLastPathComponent())
+                MainActor.assumeIsolated {
+                    self?.sharing.removeAll { $0.file == file }
+                }
             }
-            if !present(share, over: webView) {
+            if present(share, over: webView) {
+                sharing.append((sheet: share, file: file))
+            } else {
                 heldResults.append(result)
             }
         case .failure(let error):
@@ -375,6 +394,7 @@ extension SpaceSession {
         guard Self.isShowing(webView), let presenter = webView.topViewController, presenter.presentedViewController == nil else {
             return cancelled
         }
+        let dialogID = UUID()
         let answer = await withCheckedContinuation { continuation in
             let once = ResumeOnce(continuation)
             let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
@@ -386,14 +406,15 @@ extension SpaceSession {
                     once.resume(DialogAnswer(confirmed: action.confirms, text: alert?.textFields?.first?.text))
                 })
             }
-            cancelOpenDialog = { once.resume(cancelled) }
+            cancelOpenDialogs[dialogID] = { once.resume(cancelled) }
             presenter.present(alert, animated: true)
-            presentedController = alert
             if alert.presentingViewController == nil {
                 once.resume(cancelled)
+            } else if presentedController?.presentingViewController == nil {
+                presentedController = alert
             }
         }
-        cancelOpenDialog = nil
+        cancelOpenDialogs[dialogID] = nil
         return answer
     }
 }

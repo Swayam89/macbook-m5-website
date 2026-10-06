@@ -6,6 +6,9 @@ import Observation
 @Observable
 final class LockState {
     private(set) var unlocked: Set<UUID> = []
+    /// True while Alts is asking for Face ID, Touch ID or the passcode. The prompt makes the app
+    /// inactive, and that is no reason to cover the screen.
+    @ObservationIgnored private(set) var isAuthenticating = false
 
     /// False when the device has no passcode, in which case there is nothing to lock with.
     var isAvailable: Bool {
@@ -55,8 +58,11 @@ final class LockState {
 
     /// Asks for Face ID, Touch ID or the passcode. With no passcode set there is nothing to check against, so it passes.
     func authenticate(reason: String) async -> Bool {
+        if LaunchMode.passesAuthentication { return true }
         let context = LAContext()
         guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: nil) else { return true }
+        isAuthenticating = true
+        defer { isAuthenticating = false }
         do {
             return try await context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason)
         } catch {

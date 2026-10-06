@@ -38,6 +38,12 @@ struct SpaceView: View {
                     .sheet(item: $editing) { space in
                         SpaceForm(mode: .edit(space))
                     }
+                    .onChange(of: locks.isUnlocked(space)) { _, isUnlocked in
+                        // The settings close with the space when it locks.
+                        if !isUnlocked {
+                            editing = nil
+                        }
+                    }
             } else {
                 ContentUnavailableView("Space Deleted", systemImage: "trash")
             }

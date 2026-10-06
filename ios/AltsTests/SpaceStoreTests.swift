@@ -65,9 +65,38 @@ struct SpaceStoreTests {
 
         let store = SpaceStore(fileURL: file)
         #expect(store.spaces.isEmpty)
+        #expect(store.setAsideDamagedList)
 
         let backup = file.appendingPathExtension("unreadable")
         #expect(try String(contentsOf: backup, encoding: .utf8) == "not json")
+
+        // A second damaged file is kept next to the first instead of replacing it.
+        try Data("still not json".utf8).write(to: file)
+        _ = SpaceStore(fileURL: file)
+        #expect(try String(contentsOf: backup, encoding: .utf8) == "not json")
+        let secondBackup = file.appendingPathExtension("unreadable-2")
+        #expect(try String(contentsOf: secondBackup, encoding: .utf8) == "still not json")
+    }
+
+    @Test func aListThatCantBeReadIsLeftAloneAndReadLater() throws {
+        let file = temporaryFile()
+        SpaceStore(fileURL: file).add(Space(name: "Work", service: .whatsApp, tint: .moss))
+        let saved = try Data(contentsOf: file)
+
+        // A folder where the file should be makes reading fail with something other than "no such file".
+        try FileManager.default.removeItem(at: file)
+        try FileManager.default.createDirectory(at: file, withIntermediateDirectories: true)
+        let store = SpaceStore(fileURL: file)
+        #expect(store.isReadOnly)
+        #expect(store.spaces.isEmpty)
+        store.retryIfUnreadable()
+        #expect(store.isReadOnly)
+
+        try FileManager.default.removeItem(at: file)
+        try saved.write(to: file)
+        store.retryIfUnreadable()
+        #expect(!store.isReadOnly)
+        #expect(store.spaces.map(\.name) == ["Work"])
     }
 
     @Test func unknownTintsFallBackToGraphite() throws {
