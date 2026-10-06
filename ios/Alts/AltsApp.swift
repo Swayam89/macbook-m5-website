@@ -35,7 +35,11 @@ struct AltsApp: App {
             .environment(navigator)
             .onChange(of: store.spaces) { _, spaces in
                 sessions.sync(with: spaces)
+                sessions.keepRunning(spaces)
                 AltsShortcuts.updateAppShortcutParameters()
+            }
+            .onChange(of: sessions.clearing) {
+                sessions.keepRunning(store.spaces)
             }
             .onChange(of: scenePhase) { _, phase in
                 handle(phase)
@@ -44,6 +48,7 @@ struct AltsApp: App {
                 Downloads.removeLeftovers()
                 AltsShortcuts.updateAppShortcutParameters()
                 await WebsiteData.removePending()
+                sessions.keepRunning(store.spaces)
             }
         }
     }

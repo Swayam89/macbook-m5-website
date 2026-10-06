@@ -15,6 +15,8 @@ final class SessionCache {
     private(set) var clearing: Set<UUID> = []
 
     @ObservationIgnored private var recent: [UUID] = []
+    /// Spaces with Alerts While Open, started in the background so they can alert before they're opened.
+    @ObservationIgnored private var pinned: Set<UUID> = []
     @ObservationIgnored private let limit: Int
 
     init(limit: Int = 4) {
@@ -25,7 +27,7 @@ final class SessionCache {
             queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated {
-                self?.trim(to: 1)
+                self?.trim(to: 1, includingPinned: true)
             }
         }
     }
@@ -43,8 +45,26 @@ final class SessionCache {
         let session = SpaceSession(space: space)
         sessions[space.id] = session
         touch(space.id)
-        trim(to: limit)
+        trim(to: limit, keeping: space.id)
         return session
+    }
+
+    /// Starts the spaces that have Alerts While Open turned on, up to `limit`, and keeps them running
+    /// backstage so their unread counts and alerts work before anyone opens them. Locked spaces wait
+    /// until they're unlocked, and an Alerts While Open space stops being kept once the setting is off.
+    func keepRunning(_ spaces: [Space]) {
+        let wanted = spaces.filter { $0.alertsWhileOpen && !$0.requiresUnlock }.prefix(limit)
+        pinned = Set(wanted.map(\.id))
+        guard let window = UIApplication.shared.connectedScenes
+            .compactMap({ ($0 as? UIWindowScene)?.keyWindow })
+            .first
+        else { return }
+        for space in wanted where sessions[space.id] == nil && !clearing.contains(space.id) {
+            let session = SpaceSession(space: space)
+            sessions[space.id] = session
+            recent.insert(space.id, at: 0)
+            Backstage.keep(session.webView, in: window)
+        }
     }
 
     /// Marks a space as just used, so it is the last to be released.
@@ -106,12 +126,16 @@ final class SessionCache {
         recent.append(id)
     }
 
-    /// Releases the least recently used sessions. Never the one on screen, and never one that is
-    /// still downloading, since that would cancel the download.
-    private func trim(to count: Int) {
-        for id in recent where recent.count > count {
-            guard let session = sessions[id], !session.isOnScreen, !session.hasActiveDownloads else { continue }
+    /// Releases the least recently used sessions until `count` are left. Spaces kept for alerts don't
+    /// count and stay, except on a memory warning. Never releases the space being opened, the one on
+    /// screen, or one that is still downloading (that would cancel the download).
+    private func trim(to count: Int, keeping kept: UUID? = nil, includingPinned: Bool = false) {
+        let candidates = recent.filter { includingPinned || !pinned.contains($0) }
+        var remaining = candidates.count
+        for id in candidates where remaining > count {
+            guard id != kept, let session = sessions[id], !session.isOnScreen, !session.hasActiveDownloads else { continue }
             discard(id)
+            remaining -= 1
         }
     }
 }

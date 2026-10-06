@@ -104,54 +104,32 @@ jobs:
           done
           ls -la build/attachments/*
 
-      # Temporary: prints the probe summary, the UI hierarchy of any failed UI test, and a few
-      # small screenshots into the log, for review from an environment that can't download
-      # artifacts. Remove once reviewed.
-      - name: Print review material
+      # Swift Testing failure messages and attachments live in the result bundles, not the log.
+      - name: Show failures and probe summary
         if: always()
         continue-on-error: true
         run: |
-          # Failure messages live in the result bundle, not in the log, when tests run on simulator clones.
-          if [ -d build/Tests.xcresult ]; then
-            xcrun xcresulttool get test-results tests --path build/Tests.xcresult --format json > build/test-results.json || true
-            /usr/bin/python3 - <<'PY'
-          import json
+          for bundle in Tests Probe; do
+            [ -d "build/$bundle.xcresult" ] || continue
+            xcrun xcresulttool get test-results tests --path "build/$bundle.xcresult" --format json > "build/$bundle-results.json" || continue
+            /usr/bin/python3 - "build/$bundle-results.json" <<'PY'
+          import json, sys
           def walk(node, path):
-              name = node.get("name", "")
               if node.get("nodeType") == "Failure Message":
-                  print("FAILURE", " > ".join(path[-2:]), "::", name)
+                  print("FAILED", " > ".join(path[-2:]), "::", node.get("name", ""))
               for child in node.get("children", []):
-                  walk(child, path + [name])
-          try:
-              data = json.load(open("build/test-results.json"))
-              for node in data.get("testNodes", []):
-                  walk(node, [])
-          except Exception as error:
-              print("could not read test results:", error)
+                  walk(child, path + [node.get("name", "")])
+          for node in json.load(open(sys.argv[1])).get("testNodes", []):
+              walk(node, [])
           PY
-          fi
+          done
           /usr/bin/python3 - <<'PY'
-          import base64, glob, json, os, subprocess, tempfile
-          found = {}
+          import glob, json, os
           for manifest in glob.glob("build/attachments/*/manifest.json"):
-              folder = os.path.dirname(manifest)
               for test in json.load(open(manifest)):
                   for a in test.get("attachments", []):
-                      key = a.get("suggestedHumanReadableName", "").split("_0_")[0]
-                      found[key] = os.path.join(folder, a["exportedFileName"])
-          for key, path in found.items():
-              if key in ("probe-summary", "measure-placements") or key.startswith("App UI hierarchy"):
-                  print(f"=== {key}")
-                  print(open(path, errors="replace").read()[:12000])
-          for key in ["6-list", "3b-added", "4-space-open", "9-site-list"]:
-              if key not in found:
-                  continue
-              out = tempfile.mktemp(suffix=".jpg")
-              subprocess.run(["sips", "-s", "format", "jpeg", "-s", "formatOptions", "45", "-Z", "640", found[key], "--out", out], check=True, capture_output=True)
-              data = base64.b64encode(open(out, "rb").read()).decode()
-              print(f"=== {key} {len(data)}")
-              for i in range(0, len(data), 4000):
-                  print(data[i:i + 4000])
+                      if a.get("suggestedHumanReadableName", "").startswith("probe-summary"):
+                          print(open(os.path.join(os.path.dirname(manifest), a["exportedFileName"])).read())
           PY
 
       - uses: actions/upload-artifact@v6

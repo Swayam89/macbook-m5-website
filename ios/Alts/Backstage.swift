@@ -3,9 +3,10 @@ import UIKit
 /// Where the web views of spaces that aren't on screen wait: in the window, behind everything else.
 ///
 /// WebKit pauses a page as soon as its view leaves the window, which froze unread counts and
-/// alerts for every space except the one showing (`OffScreenTests` caught this). A view back here
-/// still has a window, so its page keeps running, but it sits under the app's own opaque content,
-/// takes no touches, and is hidden from VoiceOver.
+/// alerts for every space except the one showing (`OffScreenTests` caught this). Measured on the
+/// iOS 26.5 simulator, a page with a one-second timer ran 8 times in 8 seconds on screen, 8 times
+/// back here, and twice when taken out of the window before WebKit suspended it. A view back here
+/// sits under the app's own opaque content, takes no touches, and is hidden from VoiceOver.
 @MainActor
 enum Backstage {
     static func keep(_ view: UIView, in window: UIWindow) {

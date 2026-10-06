@@ -24,6 +24,15 @@ struct SessionCacheTests {
         #expect(cache.existingSession(for: c.id) != nil)
     }
 
+    @Test func theSpaceBeingOpenedIsNeverTheOneReleased() {
+        let cache = SessionCache(limit: 1)
+        let a = blankSpace("A"), b = blankSpace("B")
+        cache.session(for: a)
+        cache.session(for: b)
+        #expect(cache.existingSession(for: b.id) != nil)
+        #expect(cache.existingSession(for: a.id) == nil)
+    }
+
     @Test func reusingASpaceKeepsItsSession() {
         let cache = SessionCache()
         let space = blankSpace("A")
